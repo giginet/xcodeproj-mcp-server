@@ -150,6 +150,15 @@ This is especially useful when running the server in Docker containers or other 
 - **`add_dependency`** - Add dependency between targets
   - Parameters: `project_path`, `target_name`, `dependency_name`
 
+### App Extension Management
+
+- **`add_app_extension`** - Add an App Extension target and embed it in a host app
+  - Parameters: `project_path`, `extension_name`, `extension_type`, `host_target_name`, `bundle_identifier`, `platform` (optional), `deployment_target` (optional)
+  - Supported extension types: `widget`, `notification_service`, `notification_content`, `share`, `today`, `action`, `file_provider`, `intents`, `intents_ui`, `keyboard`, `photo_editing`, `document_provider`, `custom`
+
+- **`remove_app_extension`** - Remove an App Extension target and its embedding from the host app
+  - Parameters: `project_path`, `extension_name`
+
 ### Build Configuration
 
 - **`get_build_settings`** - Get build settings for a target

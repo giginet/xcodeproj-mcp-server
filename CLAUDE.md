@@ -71,6 +71,10 @@ xcodeproj-mcp-server/
 - `add_dependency` - Add dependency between targets
 - `set_build_setting` - Modify build settings for a target
 
+### App Extension Management
+- `add_app_extension` - Add an App Extension target and embed it in a host app (Widget, Push Notification, Share, etc.)
+- `remove_app_extension` - Remove an App Extension target and its embedding from the host app
+
 ### Advanced Operations
 - `add_framework` - Add framework dependencies
 - `add_build_phase` - Add custom build phases

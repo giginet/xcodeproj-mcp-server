@@ -24,6 +24,8 @@ public enum ToolName: String, CaseIterable {
     case removeSwiftPackage = "remove_swift_package"
     case listGroups = "list_groups"
     case addSynchronizedFolder = "add_synchronized_folder"
+    case addAppExtension = "add_app_extension"
+    case removeAppExtension = "remove_app_extension"
 }
 
 public struct XcodeProjectMCPServer {
@@ -63,6 +65,8 @@ public struct XcodeProjectMCPServer {
         let removeSwiftPackageTool = RemoveSwiftPackageTool(pathUtility: pathUtility)
         let listGroupsTool = ListGroupsTool(pathUtility: pathUtility)
         let addSynchronizedFolderTool = AddFolderTool(pathUtility: pathUtility)
+        let addAppExtensionTool = AddAppExtensionTool(pathUtility: pathUtility)
+        let removeAppExtensionTool = RemoveAppExtensionTool(pathUtility: pathUtility)
 
         // Register tools/list handler
         await server.withMethodHandler(ListTools.self) { _ in
@@ -88,6 +92,8 @@ public struct XcodeProjectMCPServer {
                 removeSwiftPackageTool.tool(),
                 listGroupsTool.tool(),
                 addSynchronizedFolderTool.tool(),
+                addAppExtensionTool.tool(),
+                removeAppExtensionTool.tool(),
             ])
         }
 
@@ -140,6 +146,10 @@ public struct XcodeProjectMCPServer {
                 return try listGroupsTool.execute(arguments: params.arguments ?? [:])
             case .addSynchronizedFolder:
                 return try addSynchronizedFolderTool.execute(arguments: params.arguments ?? [:])
+            case .addAppExtension:
+                return try addAppExtensionTool.execute(arguments: params.arguments ?? [:])
+            case .removeAppExtension:
+                return try removeAppExtensionTool.execute(arguments: params.arguments ?? [:])
             }
         }
 
