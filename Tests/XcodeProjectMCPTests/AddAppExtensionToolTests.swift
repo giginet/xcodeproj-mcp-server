@@ -77,8 +77,9 @@ struct AddAppExtensionToolTests {
 
     @Test("Add widget extension")
     func addWidgetExtension() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
+        let tempDir = FileManager.default.temporaryDirectory.appending(
+            component:
+                UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         defer {
@@ -127,8 +128,9 @@ struct AddAppExtensionToolTests {
 
     @Test("Add notification service extension")
     func addNotificationServiceExtension() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
+        let tempDir = FileManager.default.temporaryDirectory.appending(
+            component:
+                UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         defer {
@@ -166,8 +168,9 @@ struct AddAppExtensionToolTests {
 
     @Test("Add share extension")
     func addShareExtension() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
+        let tempDir = FileManager.default.temporaryDirectory.appending(
+            component:
+                UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         defer {
@@ -204,8 +207,9 @@ struct AddAppExtensionToolTests {
 
     @Test("Add extension with deployment target")
     func addExtensionWithDeploymentTarget() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
+        let tempDir = FileManager.default.temporaryDirectory.appending(
+            component:
+                UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         defer {
@@ -246,8 +250,9 @@ struct AddAppExtensionToolTests {
 
     @Test("Add duplicate extension")
     func addDuplicateExtension() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
+        let tempDir = FileManager.default.temporaryDirectory.appending(
+            component:
+                UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         defer {
@@ -282,8 +287,9 @@ struct AddAppExtensionToolTests {
 
     @Test("Add extension with non-existent host target")
     func addExtensionWithNonExistentHostTarget() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
+        let tempDir = FileManager.default.temporaryDirectory.appending(
+            component:
+                UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         defer {
@@ -313,8 +319,9 @@ struct AddAppExtensionToolTests {
 
     @Test("Add extension with invalid extension type")
     func addExtensionWithInvalidExtensionType() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
+        let tempDir = FileManager.default.temporaryDirectory.appending(
+            component:
+                UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         defer {
@@ -341,8 +348,9 @@ struct AddAppExtensionToolTests {
 
     @Test("Add extension to non-application target")
     func addExtensionToNonApplicationTarget() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
+        let tempDir = FileManager.default.temporaryDirectory.appending(
+            component:
+                UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         defer {
@@ -382,8 +390,9 @@ struct AddAppExtensionToolTests {
 
     @Test("Add intents extension")
     func addIntentsExtension() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
+        let tempDir = FileManager.default.temporaryDirectory.appending(
+            component:
+                UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         defer {

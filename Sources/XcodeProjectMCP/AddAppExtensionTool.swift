@@ -3,6 +3,87 @@ import MCP
 import PathKit
 import XcodeProj
 
+public enum ExtensionType: String, CaseIterable, Sendable {
+    case widget
+    case notificationService = "notification_service"
+    case notificationContent = "notification_content"
+    case share
+    case today
+    case action
+    case fileProvider = "file_provider"
+    case intents
+    case intentsUI = "intents_ui"
+    case keyboard
+    case photoEditing = "photo_editing"
+    case documentProvider = "document_provider"
+    case custom
+
+    public init?(from string: String) {
+        let lowercased = string.lowercased()
+        if let type = ExtensionType(rawValue: lowercased) {
+            self = type
+        } else {
+            // Handle alternative naming conventions
+            switch lowercased {
+            case "notificationservice":
+                self = .notificationService
+            case "notificationcontent":
+                self = .notificationContent
+            case "fileprovider":
+                self = .fileProvider
+            case "intentsui":
+                self = .intentsUI
+            case "photoediting":
+                self = .photoEditing
+            case "documentprovider":
+                self = .documentProvider
+            default:
+                return nil
+            }
+        }
+    }
+
+    public var productType: PBXProductType {
+        switch self {
+        case .intents:
+            return .intentsServiceExtension
+        default:
+            return .appExtension
+        }
+    }
+
+    public var extensionPointIdentifier: String {
+        switch self {
+        case .widget:
+            return "com.apple.widgetkit-extension"
+        case .notificationService:
+            return "com.apple.usernotifications.service"
+        case .notificationContent:
+            return "com.apple.usernotifications.content-extension"
+        case .share:
+            return "com.apple.share-services"
+        case .today:
+            return "com.apple.widget-extension"
+        case .action:
+            return "com.apple.ui-services"
+        case .fileProvider:
+            return "com.apple.fileprovider-nonui"
+        case .intents:
+            return "com.apple.intents-service"
+        case .intentsUI:
+            return "com.apple.intents-ui-service"
+        case .keyboard:
+            return "com.apple.keyboard-service"
+        case .photoEditing:
+            return "com.apple.photo-editing"
+        case .documentProvider:
+            return "com.apple.fileprovider-ui"
+        case .custom:
+            return ""
+        }
+    }
+}
+
 public struct AddAppExtensionTool: Sendable {
     private let pathUtility: PathUtility
 
@@ -89,8 +170,11 @@ public struct AddAppExtensionTool: Sendable {
             deploymentTarget = nil
         }
 
-        // Map extension type string to PBXProductType
-        let (productType, _) = try mapExtensionType(extensionTypeString)
+        // Map extension type string to ExtensionType enum
+        guard let extensionType = ExtensionType(from: extensionTypeString) else {
+            throw MCPError.invalidParams("Invalid extension type: \(extensionTypeString)")
+        }
+        let productType = extensionType.productType
 
         do {
             // Resolve and validate the project path
@@ -169,12 +253,13 @@ public struct AddAppExtensionTool: Sendable {
             // Add deployment target if specified
             if let deploymentTarget = deploymentTarget {
                 let deploymentKey =
-                    platform == "iOS"
-                    ? "IPHONEOS_DEPLOYMENT_TARGET"
-                    : platform == "macOS"
-                        ? "MACOSX_DEPLOYMENT_TARGET"
-                        : platform == "tvOS"
-                            ? "TVOS_DEPLOYMENT_TARGET" : "WATCHOS_DEPLOYMENT_TARGET"
+                    switch platform {
+                    case "iOS": "IPHONEOS_DEPLOYMENT_TARGET"
+                    case "macOS": "MACOSX_DEPLOYMENT_TARGET"
+                    case "tvOS": "TVOS_DEPLOYMENT_TARGET"
+                    case "watchOS": "WATCHOS_DEPLOYMENT_TARGET"
+                    default: throw MCPError.invalidParams("Unknown platform: \(platform)")
+                    }
                 extensionDebugConfig.buildSettings[deploymentKey] = .string(deploymentTarget)
                 extensionReleaseConfig.buildSettings[deploymentKey] = .string(deploymentTarget)
             }
@@ -293,41 +378,6 @@ public struct AddAppExtensionTool: Sendable {
         } catch {
             throw MCPError.internalError(
                 "Failed to create App Extension in Xcode project: \(error.localizedDescription)")
-        }
-    }
-
-    private func mapExtensionType(_ typeString: String) throws -> (
-        PBXProductType, String
-    ) {
-        switch typeString.lowercased() {
-        case "widget":
-            return (.appExtension, "com.apple.widgetkit-extension")
-        case "notification_service", "notificationservice":
-            return (.appExtension, "com.apple.usernotifications.service")
-        case "notification_content", "notificationcontent":
-            return (.appExtension, "com.apple.usernotifications.content-extension")
-        case "share":
-            return (.appExtension, "com.apple.share-services")
-        case "today":
-            return (.appExtension, "com.apple.widget-extension")
-        case "action":
-            return (.appExtension, "com.apple.ui-services")
-        case "file_provider", "fileprovider":
-            return (.appExtension, "com.apple.fileprovider-nonui")
-        case "intents":
-            return (.intentsServiceExtension, "com.apple.intents-service")
-        case "intents_ui", "intentsui":
-            return (.appExtension, "com.apple.intents-ui-service")
-        case "keyboard":
-            return (.appExtension, "com.apple.keyboard-service")
-        case "photo_editing", "photoediting":
-            return (.appExtension, "com.apple.photo-editing")
-        case "document_provider", "documentprovider":
-            return (.appExtension, "com.apple.fileprovider-ui")
-        case "custom":
-            return (.appExtension, "")
-        default:
-            throw MCPError.invalidParams("Invalid extension type: \(typeString)")
         }
     }
 }
