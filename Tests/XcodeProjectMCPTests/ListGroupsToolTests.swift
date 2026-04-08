@@ -73,7 +73,7 @@ struct ListGroupsToolTests {
         ])
 
         // Verify the result
-        if case let .text(message) = result.content.first {
+        if case let .text(message, _, _) = result.content.first {
             #expect(
                 message.contains("Groups, folder references, and synchronized groups in project:"))
             // The default project should contain at least a Products group
@@ -121,7 +121,7 @@ struct ListGroupsToolTests {
         ])
 
         // Verify the result
-        if case let .text(message) = result.content.first {
+        if case let .text(message, _, _) = result.content.first {
             #expect(
                 message.contains("Groups, folder references, and synchronized groups in project:"))
             #expect(message.contains("- TopLevel"))
@@ -185,7 +185,7 @@ struct ListGroupsToolTests {
         ])
 
         // Verify the result
-        if case let .text(message) = result.content.first {
+        if case let .text(message, _, _) = result.content.first {
             #expect(
                 message.contains("Groups, folder references, and synchronized groups in project:"))
             #expect(message.contains("- Products"))
@@ -232,7 +232,7 @@ struct ListGroupsToolTests {
         ])
 
         // Verify the result
-        if case let .text(message) = result.content.first {
+        if case let .text(message, _, _) = result.content.first {
             #expect(
                 message.contains("Groups, folder references, and synchronized groups in project:"))
             #expect(message.contains("- Sources"))

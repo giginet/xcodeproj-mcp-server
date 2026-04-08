@@ -100,7 +100,7 @@ struct GetBuildSettingsToolTests {
         let result = try tool.execute(arguments: arguments)
 
         #expect(result.content.count == 1)
-        if case let .text(content) = result.content[0] {
+        if case let .text(content, _, _) = result.content[0] {
             #expect(content.contains("Build settings for target 'TestApp'"))
             #expect(content.contains("PRODUCT_NAME") || content.contains("BUNDLE_IDENTIFIER"))
         } else {
@@ -135,7 +135,7 @@ struct GetBuildSettingsToolTests {
         let result = try tool.execute(arguments: arguments)
 
         #expect(result.content.count == 1)
-        if case let .text(content) = result.content[0] {
+        if case let .text(content, _, _) = result.content[0] {
             #expect(content.contains("Build settings for target 'TestApp' (Release)"))
         } else {
             Issue.record("Expected text content")

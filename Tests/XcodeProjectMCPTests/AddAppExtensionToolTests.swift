@@ -101,7 +101,7 @@ struct AddAppExtensionToolTests {
 
         let result = try tool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -152,7 +152,7 @@ struct AddAppExtensionToolTests {
 
         let result = try tool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -192,7 +192,7 @@ struct AddAppExtensionToolTests {
 
         let result = try tool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -233,7 +233,7 @@ struct AddAppExtensionToolTests {
 
         let result = try tool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -278,7 +278,7 @@ struct AddAppExtensionToolTests {
         // Add second time
         let result = try tool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -310,7 +310,7 @@ struct AddAppExtensionToolTests {
 
         let result = try tool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -381,7 +381,7 @@ struct AddAppExtensionToolTests {
 
         let result = try tool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -414,7 +414,7 @@ struct AddAppExtensionToolTests {
 
         let result = try tool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }

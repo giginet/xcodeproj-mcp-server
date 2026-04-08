@@ -59,7 +59,7 @@ struct ListBuildConfigurationsToolTests {
         let result = try tool.execute(arguments: listArguments)
 
         #expect(result.content.count == 1)
-        if case let .text(content) = result.content[0] {
+        if case let .text(content, _, _) = result.content[0] {
             #expect(content.contains("TestProject.xcodeproj"))
             #expect(content.contains("Debug") || content.contains("Release"))
         } else {
