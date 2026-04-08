@@ -87,12 +87,11 @@ public struct CreateGroupTool: Sendable {
             // Find parent group
             let parentGroup: PBXGroup
             if let parentGroupName = parentGroupName {
-                // Find specified parent group
-                if let foundGroup = xcodeproj.pbxproj.groups.first(where: {
-                    $0.name == parentGroupName
-                }) {
-                    parentGroup = foundGroup
-                } else {
+                // Find group by name, path, or hierarchical path (e.g. "Parent/Child")
+                do {
+                    parentGroup = try GroupFinder.findGroup(
+                        named: parentGroupName, in: xcodeproj.pbxproj)
+                } catch {
                     throw MCPError.invalidParams(
                         "Parent group '\(parentGroupName)' not found in project")
                 }
