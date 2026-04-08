@@ -75,7 +75,7 @@ struct RemoveFileToolTests {
         let result = try removeTool.execute(arguments: removeArgs)
 
         // Check the result contains success message
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -140,7 +140,7 @@ struct RemoveFileToolTests {
         let result = try removeTool.execute(arguments: removeArgs)
 
         // Check the result contains success message
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -173,7 +173,7 @@ struct RemoveFileToolTests {
         let result = try removeTool.execute(arguments: removeArgs)
 
         // Check the result contains not found message
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }

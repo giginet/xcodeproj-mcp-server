@@ -87,7 +87,7 @@ struct AddFolderToolTests {
         ])
 
         // Verify the result
-        if case let .text(message) = result.content.first {
+        if case let .text(message, _, _) = result.content.first {
             #expect(message.contains("Successfully added folder reference 'TestFolder'"))
         } else {
             Issue.record("Expected text result")
@@ -130,7 +130,7 @@ struct AddFolderToolTests {
         ])
 
         // Verify the result
-        if case let .text(message) = result.content.first {
+        if case let .text(message, _, _) = result.content.first {
             #expect(message.contains("Successfully added folder reference 'TestFolder'"))
             #expect(message.contains("in group 'CustomGroup'"))
         } else {
@@ -165,7 +165,7 @@ struct AddFolderToolTests {
         ])
 
         // Verify the result
-        if case let .text(message) = result.content.first {
+        if case let .text(message, _, _) = result.content.first {
             #expect(message.contains("Successfully added folder reference 'TestFolder'"))
             #expect(message.contains("to target 'TestTarget'"))
         } else {

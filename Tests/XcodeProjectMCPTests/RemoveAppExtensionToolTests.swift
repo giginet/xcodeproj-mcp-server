@@ -75,7 +75,7 @@ struct RemoveAppExtensionToolTests {
             "extension_name": Value.string("MyWidget"),
         ])
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -112,7 +112,7 @@ struct RemoveAppExtensionToolTests {
             "extension_name": Value.string("NonExistentWidget"),
         ])
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -140,7 +140,7 @@ struct RemoveAppExtensionToolTests {
             "extension_name": Value.string("TestApp"),
         ])
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }

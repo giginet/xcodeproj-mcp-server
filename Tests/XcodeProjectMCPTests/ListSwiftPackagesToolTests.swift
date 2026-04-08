@@ -47,7 +47,7 @@ struct ListSwiftPackagesToolTests {
 
         let result = try tool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -99,7 +99,7 @@ struct ListSwiftPackagesToolTests {
 
         let result = try listTool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -147,7 +147,7 @@ struct ListSwiftPackagesToolTests {
 
         let result = try listTool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
@@ -198,7 +198,7 @@ struct ListSwiftPackagesToolTests {
 
         let result = try listTool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
