@@ -228,7 +228,7 @@ struct CreateGroupToolTests {
 
         let result = try tool.execute(arguments: args)
 
-        guard case let .text(message) = result.content.first else {
+        guard case let .text(message, _, _) = result.content.first else {
             Issue.record("Expected text result")
             return
         }
