@@ -102,12 +102,11 @@ public struct AddFolderTool: Sendable {
             // Find the group to add the folder to
             let targetGroup: PBXGroup
             if let groupName = groupName {
-                // Find group by name or path
-                if let foundGroup = xcodeproj.pbxproj.groups.first(where: {
-                    $0.name == groupName || $0.path == groupName
-                }) {
-                    targetGroup = foundGroup
-                } else {
+                // Find group by name, path, or hierarchical path (e.g. "Parent/Child")
+                do {
+                    targetGroup = try GroupFinder.findGroup(
+                        named: groupName, in: xcodeproj.pbxproj)
+                } catch {
                     throw MCPError.invalidParams("Group '\(groupName)' not found in project")
                 }
             } else {

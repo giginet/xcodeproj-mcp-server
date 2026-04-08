@@ -55,6 +55,62 @@ struct TestProjectHelper {
         try xcodeproj.write(path: path)
     }
 
+    /// Create a test project with nested groups: TopLevel -> Nested -> DeeplyNested
+    static func createTestProjectWithNestedGroups(name: String, at path: Path) throws {
+        let pbxproj = PBXProj()
+
+        // Create nested groups
+        let deeplyNestedGroup = PBXGroup(
+            children: [], sourceTree: .group, name: "DeeplyNested", path: "DeeplyNested")
+        pbxproj.add(object: deeplyNestedGroup)
+
+        let nestedGroup = PBXGroup(
+            children: [deeplyNestedGroup], sourceTree: .group, name: "Nested", path: "Nested")
+        pbxproj.add(object: nestedGroup)
+
+        let topLevelGroup = PBXGroup(
+            children: [nestedGroup], sourceTree: .group, name: "TopLevel", path: "TopLevel")
+        pbxproj.add(object: topLevelGroup)
+
+        // Create main group containing topLevelGroup
+        let mainGroup = PBXGroup(children: [topLevelGroup], sourceTree: .group)
+        pbxproj.add(object: mainGroup)
+
+        let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
+        pbxproj.add(object: productsGroup)
+
+        // Create build configurations
+        let debugConfig = XCBuildConfiguration(name: "Debug", buildSettings: [:])
+        let releaseConfig = XCBuildConfiguration(name: "Release", buildSettings: [:])
+        pbxproj.add(object: debugConfig)
+        pbxproj.add(object: releaseConfig)
+
+        let configurationList = XCConfigurationList(
+            buildConfigurations: [debugConfig, releaseConfig],
+            defaultConfigurationName: "Release"
+        )
+        pbxproj.add(object: configurationList)
+
+        let project = PBXProject(
+            name: name,
+            buildConfigurationList: configurationList,
+            compatibilityVersion: "Xcode 14.0",
+            preferredProjectObjectVersion: 56,
+            minimizedProjectReferenceProxies: 0,
+            mainGroup: mainGroup,
+            developmentRegion: "en",
+            knownRegions: ["en", "Base"],
+            productsGroup: productsGroup
+        )
+        pbxproj.add(object: project)
+        pbxproj.rootObject = project
+
+        let workspaceData = XCWorkspaceData(children: [])
+        let workspace = XCWorkspace(data: workspaceData)
+        let xcodeproj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
+        try xcodeproj.write(path: path)
+    }
+
     static func createTestProjectWithTarget(name: String, targetName: String, at path: Path) throws
     {
         // Create the .pbxproj file using XcodeProj
