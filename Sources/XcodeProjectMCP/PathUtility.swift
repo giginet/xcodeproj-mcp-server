@@ -58,6 +58,19 @@ public struct PathUtility: Sendable {
             return nil
         }
 
+        return PathUtility.relativePath(from: basePath, to: absolutePath)
+    }
+
+    /// Converts an absolute path to a relative path from an arbitrary directory.
+    ///
+    /// Unlike `makeRelativePath(from:)`, which is always relative to the server's
+    /// sandbox `basePath`, this lets callers compute a path relative to some other
+    /// directory -- e.g. the directory that actually governs how a `PBXFileReference`
+    /// with `sourceTree: .group` resolves on disk, which is not necessarily `basePath`.
+    public static func relativePath(from directory: String, to absolutePath: String) -> String? {
+        let baseURL = URL(fileURLWithPath: directory).standardized
+        let absoluteURL = URL(fileURLWithPath: absolutePath).standardized
+
         // Get the relative components
         let baseComponents = baseURL.pathComponents
         let absoluteComponents = absoluteURL.pathComponents
