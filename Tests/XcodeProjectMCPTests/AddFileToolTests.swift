@@ -250,6 +250,46 @@ struct AddFileToolTests {
         #expect(buildFile != nil)
     }
 
+    @Test func testAddFileWhenProjectIsNestedUnderBasePath() throws {
+        // Mirrors a monorepo layout where the MCP server's basePath is the
+        // repo root but the .xcodeproj lives in a subdirectory, e.g.
+        // <repo>/apps/ios/TestProject.xcodeproj with basePath == <repo>.
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let projectDir = tempDir.appendingPathComponent("apps/ios")
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+
+        let tool = AddFileTool(pathUtility: PathUtility(basePath: tempDir.path))
+
+        let projectPath = Path(projectDir.path) + "TestProject.xcodeproj"
+        try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
+
+        // file_path is given relative to basePath (the repo root), as callers do today.
+        let arguments: [String: Value] = [
+            "project_path": Value.string(projectPath.string),
+            "file_path": Value.string("apps/ios/TestProject/file.swift"),
+        ]
+
+        _ = try tool.execute(arguments: arguments)
+
+        let xcodeproj = try XcodeProj(path: projectPath)
+        let addedFile = xcodeproj.pbxproj.fileReferences.first { $0.name == "file.swift" }
+        #expect(addedFile != nil)
+
+        // The stored path must resolve, relative to the project's own directory,
+        // to the file's real on-disk location -- not be doubled up with the
+        // project's own subdirectory prefix (e.g. apps/ios/apps/ios/...).
+        let sourceRoot = Path(projectDir.path)
+        let expected = Path(tempDir.appendingPathComponent("apps/ios/TestProject/file.swift").path)
+        let resolved = try addedFile?.fullPath(sourceRoot: sourceRoot)
+        #expect(resolved == expected)
+    }
+
     @Test func testAddFileWithNonexistentTarget() throws {
         // Create a temporary directory
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(

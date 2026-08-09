@@ -74,18 +74,6 @@ public struct AddFileTool: Sendable {
 
             let xcodeproj = try XcodeProj(path: Path(projectURL.path))
 
-            // Create file reference
-            let fileName = URL(fileURLWithPath: resolvedFilePath).lastPathComponent
-            // Use relative path from project for file reference
-            let relativePath =
-                pathUtility.makeRelativePath(from: resolvedFilePath) ?? resolvedFilePath
-            let fileReference = PBXFileReference(
-                sourceTree: .group,
-                name: fileName,
-                path: relativePath
-            )
-            xcodeproj.pbxproj.add(object: fileReference)
-
             // Find the group to add the file to
             let targetGroup: PBXGroup
             if let groupName = groupName {
@@ -106,8 +94,31 @@ public struct AddFileTool: Sendable {
                 targetGroup = mainGroup
             }
 
+            // Create file reference
+            let fileName = URL(fileURLWithPath: resolvedFilePath).lastPathComponent
+            // A PBXFileReference with sourceTree .group resolves its `path` relative to
+            // its parent group's own resolved directory, which chains up to the
+            // directory containing the .xcodeproj -- not the MCP server's sandbox
+            // basePath. Those two directories only coincide when the .xcodeproj sits
+            // directly at basePath; for a nested project (e.g. <repo>/apps/ios/Foo.xcodeproj
+            // with basePath == <repo>) resolving relative to basePath produces a path
+            // that gets the project's own subdirectory prefix applied twice at build time.
+            let projectDirPath = Path(projectURL.deletingLastPathComponent().path)
+            let targetGroupPath = try? targetGroup.fullPath(sourceRoot: projectDirPath)
+            let relativePath =
+                PathUtility.relativePath(
+                    from: (targetGroupPath ?? projectDirPath).string, to: resolvedFilePath)
+                ?? resolvedFilePath
+            let fileReference = PBXFileReference(
+                sourceTree: .group,
+                name: fileName,
+                path: relativePath
+            )
+            xcodeproj.pbxproj.add(object: fileReference)
+
             // Add file to group
             targetGroup.children.append(fileReference)
+            fileReference.parent = targetGroup
 
             // Add file to target if specified
             if let targetName = targetName {
