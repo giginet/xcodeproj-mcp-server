@@ -180,6 +180,80 @@ struct MoveFileToolTests {
         #expect(content == "// Test file")
     }
 
+    @Test("Move file inside a group keeps the reference resolvable")
+    func moveFileInGroupKeepsReferenceResolvable() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        // The project lives in a subdirectory so that basePath and the project
+        // directory are distinct, and the file sits in a group with its own path.
+        let projectDir = tempDir.appendingPathComponent("App")
+        let sourcesDir = projectDir.appendingPathComponent("Sources")
+        try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+
+        let projectPath = Path(projectDir.path) + "TestProject.xcodeproj"
+        try TestProjectHelper.createTestProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let pathUtility = PathUtility(basePath: tempDir.path)
+
+        // Create a group backed by the Sources directory.
+        let groupTool = CreateGroupTool(pathUtility: pathUtility)
+        _ = try groupTool.execute(
+            arguments: [
+                "project_path": Value.string(projectPath.string),
+                "group_name": Value.string("Sources"),
+                "path": Value.string("Sources"),
+            ] as [String: Value])
+
+        // Add a file into that group.
+        let oldFilePath = sourcesDir.appendingPathComponent("OldFile.swift").path
+        try "// Test file".write(toFile: oldFilePath, atomically: true, encoding: .utf8)
+
+        let addTool = AddFileTool(pathUtility: pathUtility)
+        _ = try addTool.execute(
+            arguments: [
+                "project_path": Value.string(projectPath.string),
+                "file_path": Value.string(oldFilePath),
+                "group_name": Value.string("Sources"),
+                "target_name": Value.string("TestApp"),
+            ] as [String: Value])
+
+        // Move it within the same group.
+        let newFilePath = sourcesDir.appendingPathComponent("NewFile.swift").path
+        let moveTool = MoveFileTool(pathUtility: pathUtility)
+        _ = try moveTool.execute(
+            arguments: [
+                "project_path": Value.string(projectPath.string),
+                "old_path": Value.string(oldFilePath),
+                "new_path": Value.string(newFilePath),
+                "move_on_disk": Value.bool(true),
+            ] as [String: Value])
+
+        let xcodeproj = try XcodeProj(path: projectPath)
+        guard
+            let fileRef = xcodeproj.pbxproj.fileReferences.first(where: {
+                $0.name == "NewFile.swift"
+            })
+        else {
+            Issue.record("Moved file reference not found")
+            return
+        }
+
+        // The path is stored relative to the owning group, not to basePath.
+        #expect(fileRef.path == "NewFile.swift")
+
+        // And it therefore still resolves to the file on disk.
+        let resolved = try fileRef.fullPath(sourceRoot: Path(projectDir.path))
+        #expect(resolved?.string == newFilePath)
+        #expect(FileManager.default.fileExists(atPath: newFilePath) == true)
+    }
+
     @Test("Move non-existent file")
     func moveNonExistentFile() throws {
         // Create a temporary directory

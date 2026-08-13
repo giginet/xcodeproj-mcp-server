@@ -78,6 +78,8 @@ public struct MoveFileTool: Sendable {
             let newRelativePath =
                 pathUtility.makeRelativePath(from: resolvedNewPath) ?? resolvedNewPath
 
+            let projectDirPath = Path(projectURL.deletingLastPathComponent().path)
+
             var fileMoved = false
 
             // Find and update file references
@@ -86,7 +88,12 @@ public struct MoveFileTool: Sendable {
                     || fileRef.name == oldFileName || fileRef.path == oldFileName
                 {
                     // Update the file reference
-                    fileRef.path = newRelativePath
+                    fileRef.path = referencePath(
+                        for: fileRef,
+                        movedTo: resolvedNewPath,
+                        in: xcodeproj.pbxproj,
+                        projectDirectory: projectDirPath
+                    )
                     fileRef.name = newFileName
                     fileMoved = true
                 }
@@ -128,6 +135,48 @@ public struct MoveFileTool: Sendable {
         } catch {
             throw MCPError.internalError(
                 "Failed to move file in Xcode project: \(error.localizedDescription)")
+        }
+    }
+
+    /// Computes the `path` to store on a moved file reference.
+    ///
+    /// A `PBXFileReference` with `sourceTree: .group` resolves its `path` relative to
+    /// the directory of the group that owns it, which chains up to the directory
+    /// containing the .xcodeproj -- not the MCP server's sandbox basePath. Storing a
+    /// basePath-relative path breaks the reference whenever the owning group carries a
+    /// `path` of its own, because the group's directory then gets applied on top of it.
+    /// This mirrors how `AddFileTool` computes the path when it first adds the file.
+    private func referencePath(
+        for fileRef: PBXFileReference,
+        movedTo resolvedNewPath: String,
+        in pbxproj: PBXProj,
+        projectDirectory: Path
+    ) -> String {
+        let fallback =
+            pathUtility.makeRelativePath(from: resolvedNewPath) ?? resolvedNewPath
+
+        switch fileRef.sourceTree {
+        case .group:
+            // `parent` is not guaranteed to be populated for references decoded from
+            // disk, so locate the owning group by looking for it among the children.
+            let owningGroup =
+                (fileRef.parent as? PBXGroup)
+                ?? pbxproj.groups.first { group in
+                    group.children.contains { $0 === fileRef }
+                }
+            let groupDirectory =
+                owningGroup.flatMap { try? $0.fullPath(sourceRoot: projectDirectory) }
+                ?? projectDirectory
+            return PathUtility.relativePath(from: groupDirectory.string, to: resolvedNewPath)
+                ?? fallback
+        case .sourceRoot:
+            // Resolved relative to the directory containing the .xcodeproj.
+            return PathUtility.relativePath(
+                from: projectDirectory.string, to: resolvedNewPath) ?? fallback
+        default:
+            // Absolute or build-setting-relative trees carry their own semantics; leave
+            // the existing behaviour untouched.
+            return fallback
         }
     }
 }
