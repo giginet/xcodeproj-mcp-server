@@ -25,7 +25,8 @@ public struct AddFileTool: Sendable {
                     "file_path": .object([
                         "type": .string("string"),
                         "description": .string(
-                            "Path to the file to add (relative to project root or absolute)"),
+                            "Path to the file to add (absolute, or relative to the base directory the server was started with -- not to the directory containing the .xcodeproj)"
+                        ),
                     ]),
                     "group_name": .object([
                         "type": .string("string"),
@@ -183,9 +184,24 @@ public struct AddFileTool: Sendable {
             let targetInfo = targetName != nil ? " to target '\(targetName!)'" : ""
             let groupInfo = groupName != nil ? " in group '\(groupName!)'" : ""
 
+            // Referencing a file that is not on disk yet is legitimate, so this is not an
+            // error. It is worth reporting though: the most common cause is a file_path
+            // resolved against the wrong directory, which otherwise silently produces a
+            // reference that Xcode shows as missing.
+            var message = "Successfully added file '\(fileName)'\(targetInfo)\(groupInfo)"
+            if !FileManager.default.fileExists(atPath: resolvedFilePath) {
+                message += """
+
+
+                    Warning: no file exists at '\(resolvedFilePath)'. The reference was added \
+                    anyway. Note that a relative file_path resolves against the base directory \
+                    the server was started with, not the directory containing the .xcodeproj.
+                    """
+            }
+
             return CallTool.Result(
                 content: [
-                    .text("Successfully added file '\(fileName)'\(targetInfo)\(groupInfo)")
+                    .text(message)
                 ]
             )
         } catch {

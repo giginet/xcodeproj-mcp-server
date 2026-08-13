@@ -290,6 +290,64 @@ struct AddFileToolTests {
         #expect(resolved == expected)
     }
 
+    @Test func testAddFileWarnsWhenResolvedFileIsMissing() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        let tool = AddFileTool(pathUtility: PathUtility(basePath: tempDir.path))
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
+
+        // Nothing was written to this path, so the reference cannot resolve.
+        let result = try tool.execute(
+            arguments: [
+                "project_path": Value.string(projectPath.string),
+                "file_path": Value.string("Sources/Missing.swift"),
+            ] as [String: Value])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text content")
+            return
+        }
+        #expect(message.contains("Successfully added file 'Missing.swift'"))
+        #expect(message.contains("Warning: no file exists at"))
+    }
+
+    @Test func testAddFileDoesNotWarnWhenFileExists() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        let tool = AddFileTool(pathUtility: PathUtility(basePath: tempDir.path))
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
+
+        let filePath = tempDir.appendingPathComponent("Present.swift").path
+        try "// Test file".write(toFile: filePath, atomically: true, encoding: .utf8)
+
+        let result = try tool.execute(
+            arguments: [
+                "project_path": Value.string(projectPath.string),
+                "file_path": Value.string(filePath),
+            ] as [String: Value])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text content")
+            return
+        }
+        #expect(message.contains("Successfully added file 'Present.swift'"))
+        #expect(!message.contains("Warning"))
+    }
+
     @Test func testAddFileWithNonexistentTarget() throws {
         // Create a temporary directory
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(

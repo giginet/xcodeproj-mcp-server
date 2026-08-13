@@ -25,7 +25,8 @@ public struct AddFolderTool: Sendable {
                     "folder_path": .object([
                         "type": .string("string"),
                         "description": .string(
-                            "Path to the folder to add (relative to project root or absolute)"),
+                            "Path to the folder to add (absolute, or relative to the base directory the server was started with)"
+                        ),
                     ]),
                     "group_name": .object([
                         "type": .string("string"),
