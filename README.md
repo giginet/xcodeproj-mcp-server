@@ -170,6 +170,67 @@ Add the following to your Claude Desktop configuration file:
 }
 ```
 
+### Using the server from Claude Code or Codex inside Xcode
+
+Xcode can run Claude Code and Codex as coding agents, and it reads their configuration from agent-specific subfolders of `~/Library/Developer/Xcode/CodingAssistant`, a folder Xcode uses exclusively. Configuration placed there affects agents only when you launch them in Xcode, so it does not interfere with your regular `~/.claude` or `~/.codex` setup. See Apple's [Extending and customizing agents](https://developer.apple.com/documentation/xcode/extending-and-customizing-agents#Customize-agent-environments) for details.
+
+Two things differ from the command-line setup:
+
+- Xcode launches the MCP server with the project directory as its working directory, so mount `.` rather than `$PWD`.
+- Give `command` an absolute path, because the agent's environment does not necessarily have `/usr/local/bin` on its `PATH`.
+
+#### Claude Code in Xcode
+
+`~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig` acts as Claude Code's configuration directory. Point `CLAUDE_CONFIG_DIR` at it and use `claude mcp add`:
+
+```bash
+CLAUDE_CONFIG_DIR=~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig \
+  claude mcp add xcodeproj -s user -- \
+  /usr/local/bin/container run --rm -i -v .:/workspace ghcr.io/giginet/xcodeproj-mcp-server:latest /workspace
+```
+
+That writes the server into `ClaudeAgentConfig/.claude.json`. To add it by hand instead, add an entry under `mcpServers`:
+
+```json
+{
+  "mcpServers": {
+    "xcodeproj": {
+      "type": "stdio",
+      "command": "/usr/local/bin/container",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-v",
+        ".:/workspace",
+        "ghcr.io/giginet/xcodeproj-mcp-server:latest",
+        "/workspace"
+      ]
+    }
+  }
+}
+```
+
+#### Codex in Xcode
+
+`~/Library/Developer/Xcode/CodingAssistant/codex` acts as Codex's `CODEX_HOME`:
+
+```bash
+CODEX_HOME=~/Library/Developer/Xcode/CodingAssistant/codex \
+  codex mcp add xcodeproj -- \
+  /usr/local/bin/container run --rm -i -v .:/workspace ghcr.io/giginet/xcodeproj-mcp-server:latest /workspace
+```
+
+That writes the server into `codex/config.toml`. To add it by hand instead:
+
+```toml
+[mcp_servers.xcodeproj]
+command = "/usr/local/bin/container"
+args = ["run", "--rm", "-i", "-v", ".:/workspace", "ghcr.io/giginet/xcodeproj-mcp-server:latest", "/workspace"]
+```
+
+If you set up with Docker, use the absolute path to your `docker` binary in place of `/usr/local/bin/container`. Restart the agent in Xcode after changing its configuration.
+
 ### Recommended settings for Claude Code
 
 Enabling `ENABLE_TOOL_SEARCH` in `.claude/settings.json` activates dynamic MCP tool loading. This prevents unused MCP tools from consuming context.
