@@ -46,10 +46,90 @@ This server enables AI assistants and other MCP clients to:
 
 ### Prerequisites
 
-- Docker
 - macOS (for running Xcode projects)
+- A container runtime — either [Apple's `container`](#setup-with-apples-container-recommended) (recommended) or [Docker](#setup-with-docker)
 
-### Installation using Docker
+The server is distributed as a `linux/arm64` container image, which runs on either runtime.
+
+### Setup with Apple's `container` (recommended)
+
+[`container`](https://github.com/apple/container) is Apple's own tool for running Linux containers as lightweight virtual machines on macOS. It is the recommended runtime for this server: it comes from Apple, requires no third-party desktop application, and runs the published `linux/arm64` image natively on Apple silicon.
+
+#### Requirements
+
+- A Mac with Apple silicon
+- macOS 26 or later (`container` does not support older versions)
+
+#### Installation
+
+Install the `container` CLI from the [official release page](https://github.com/apple/container/releases).
+
+`container` needs its background service running. Start it once after installing, and again after each reboot:
+
+```bash
+container system start
+```
+
+Then pull the pre-built image from GitHub Container Registry:
+
+```bash
+container image pull ghcr.io/giginet/xcodeproj-mcp-server:latest
+```
+
+`container run` has no `--pull` option, so run `container image pull` again whenever you want to update to the latest image.
+
+#### Configuration for Claude Code
+
+```bash
+claude mcp add xcodeproj -- container run --rm -i -v $PWD:/workspace ghcr.io/giginet/xcodeproj-mcp-server:latest /workspace
+```
+
+We need to mount the current working directory (`$PWD`) to `/workspace` inside the container. This allows the server to access your Xcode projects.
+
+#### Configuration for Claude Desktop
+
+Add the following to your Claude Desktop configuration file:
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "xcodeproj": {
+      "command": "/usr/local/bin/container",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-v",
+        "${workspaceFolder}:/workspace",
+        "ghcr.io/giginet/xcodeproj-mcp-server",
+        "/workspace"
+      ]
+    }
+  }
+}
+```
+
+The installer places the binary at `/usr/local/bin/container`. The absolute path is used here because that directory is not always on the `PATH` of GUI applications.
+
+#### Building the image locally
+
+`container build` reads the same `Dockerfile`:
+
+```bash
+container build -t xcodeproj-mcp-server:local .
+```
+
+The builder container defaults to 2 CPUs and 2 GB of memory. Allocate more to it to speed up the release build:
+
+```bash
+container build -c 8 -m 8g -t xcodeproj-mcp-server:local .
+```
+
+### Setup with Docker
+
+Use Docker if you are on macOS 15 or earlier, or if Docker is already part of your workflow.
 
 Pull the pre-built Docker image from GitHub Container Registry:
 
@@ -57,27 +137,15 @@ Pull the pre-built Docker image from GitHub Container Registry:
 docker pull ghcr.io/giginet/xcodeproj-mcp-server
 ```
 
-### Configuration for Claude Code
+#### Configuration for Claude Code
 
 ```bash
 claude mcp add xcodeproj -- docker run --pull=always --rm -i -v $PWD:/workspace ghcr.io/giginet/xcodeproj-mcp-server:latest /workspace
 ```
 
-We need to mount the current working directory (`$PWD`) to `/workspace` inside the container. This allows the server to access your Xcode projects.
+As with `container`, the current working directory (`$PWD`) is mounted to `/workspace` inside the container so that the server can access your Xcode projects.
 
-#### Recommended settings
-
-Enabling `ENABLE_TOOL_SEARCH` in `.claude/settings.json` activates dynamic MCP tool loading. This prevents unused MCP tools from consuming context.
-
-```json
-{
-  "env": {
-    "ENABLE_TOOL_SEARCH": "1"
-  }
-}
-```
-
-### Configuration for Claude Desktop
+#### Configuration for Claude Desktop
 
 Add the following to your Claude Desktop configuration file:
 
@@ -102,6 +170,18 @@ Add the following to your Claude Desktop configuration file:
 }
 ```
 
+### Recommended settings for Claude Code
+
+Enabling `ENABLE_TOOL_SEARCH` in `.claude/settings.json` activates dynamic MCP tool loading. This prevents unused MCP tools from consuming context.
+
+```json
+{
+  "env": {
+    "ENABLE_TOOL_SEARCH": "1"
+  }
+}
+```
+
 ### Path Security
 
 The MCP server now supports restricting file operations to a specific base directory. When you provide a base path as a command-line argument:
@@ -110,7 +190,7 @@ The MCP server now supports restricting file operations to a specific base direc
 - Absolute paths are validated to ensure they're within the base directory
 - Any attempt to access files outside the base directory will result in an error
 
-This is especially useful when running the server in Docker containers or other sandboxed environments.
+This is especially useful when running the server in containers or other sandboxed environments.
 
 ## Available Tools
 
