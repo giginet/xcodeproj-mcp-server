@@ -6,7 +6,7 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
-@Suite("AddDependencyTool Tests")
+@Suite("AddDependencyTool Tests", .temporaryDirectory)
 struct AddDependencyToolTests {
     @Test("Tool creation")
     func toolCreation() {
@@ -48,14 +48,7 @@ struct AddDependencyToolTests {
 
     @Test("Add dependency between targets")
     func addDependencyBetweenTargets() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -103,14 +96,7 @@ struct AddDependencyToolTests {
 
     @Test("Add duplicate dependency")
     func addDuplicateDependency() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with targets
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -150,14 +136,7 @@ struct AddDependencyToolTests {
 
     @Test("Add dependency with non-existent target")
     func addDependencyWithNonExistentTarget() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -182,14 +161,7 @@ struct AddDependencyToolTests {
 
     @Test("Add dependency with non-existent dependency")
     func addDependencyWithNonExistentDependency() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"

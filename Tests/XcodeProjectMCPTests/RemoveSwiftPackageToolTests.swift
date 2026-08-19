@@ -6,7 +6,7 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
-@Suite("RemoveSwiftPackageTool Tests")
+@Suite("RemoveSwiftPackageTool Tests", .temporaryDirectory)
 struct RemoveSwiftPackageToolTests {
     @Test("Tool creation")
     func toolCreation() {
@@ -39,13 +39,7 @@ struct RemoveSwiftPackageToolTests {
 
     @Test("Remove non-existent package")
     func removeNonExistentPackage() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
@@ -67,13 +61,7 @@ struct RemoveSwiftPackageToolTests {
 
     @Test("Remove existing package from project")
     func removeExistingPackageFromProject() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
@@ -115,13 +103,7 @@ struct RemoveSwiftPackageToolTests {
 
     @Test("Remove package from project and targets")
     func removePackageFromProjectAndTargets() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -173,13 +155,7 @@ struct RemoveSwiftPackageToolTests {
 
     @Test("Remove package but keep target dependencies")
     func removePackageButKeepTargetDependencies() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -226,13 +202,7 @@ struct RemoveSwiftPackageToolTests {
 
     @Test("Remove multiple packages")
     func removeMultiplePackages() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)

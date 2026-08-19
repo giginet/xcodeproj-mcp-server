@@ -6,7 +6,7 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
-@Suite("SetBuildSettingTool Tests")
+@Suite("SetBuildSettingTool Tests", .temporaryDirectory)
 struct SetBuildSettingToolTests {
     @Test("Tool creation")
     func toolCreation() {
@@ -74,14 +74,7 @@ struct SetBuildSettingToolTests {
 
     @Test("Set build setting for specific configuration")
     func setBuildSettingForSpecificConfiguration() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -125,14 +118,7 @@ struct SetBuildSettingToolTests {
 
     @Test("Set build setting for all configurations")
     func setBuildSettingForAllConfigurations() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -176,14 +162,7 @@ struct SetBuildSettingToolTests {
 
     @Test("Set build setting with non-existent target")
     func setBuildSettingWithNonExistentTarget() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -210,14 +189,7 @@ struct SetBuildSettingToolTests {
 
     @Test("Set build setting with non-existent configuration")
     func setBuildSettingWithNonExistentConfiguration() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"

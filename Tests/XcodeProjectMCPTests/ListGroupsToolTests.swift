@@ -6,17 +6,14 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
+@Suite(.temporaryDirectory)
 struct ListGroupsToolTests {
     let tempDir: String
     let pathUtility: PathUtility
 
     init() {
-        self.tempDir =
-            FileManager.default.temporaryDirectory
-            .appendingPathComponent("ListGroupsToolTests-\(UUID().uuidString)")
-            .path
+        self.tempDir = TemporaryDirectory.url.path
         self.pathUtility = PathUtility(basePath: tempDir)
-        try? FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
     }
 
     @Test("Tool has correct properties")
@@ -240,5 +237,4 @@ struct ListGroupsToolTests {
             Issue.record("Expected text result")
         }
     }
-
 }

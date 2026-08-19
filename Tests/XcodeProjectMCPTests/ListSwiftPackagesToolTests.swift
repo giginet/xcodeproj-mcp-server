@@ -6,7 +6,7 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
-@Suite("ListSwiftPackagesTool Tests")
+@Suite("ListSwiftPackagesTool Tests", .temporaryDirectory)
 struct ListSwiftPackagesToolTests {
     @Test("Tool creation")
     func toolCreation() {
@@ -29,13 +29,7 @@ struct ListSwiftPackagesToolTests {
 
     @Test("List packages from empty project")
     func listPackagesFromEmptyProject() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
@@ -56,13 +50,7 @@ struct ListSwiftPackagesToolTests {
 
     @Test("List packages with remote packages")
     func listPackagesWithRemotePackages() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
@@ -115,13 +103,7 @@ struct ListSwiftPackagesToolTests {
 
     @Test("List packages with local packages")
     func listPackagesWithLocalPackages() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
@@ -158,13 +140,7 @@ struct ListSwiftPackagesToolTests {
 
     @Test("List packages with mixed remote and local packages")
     func listPackagesWithMixedPackages() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)

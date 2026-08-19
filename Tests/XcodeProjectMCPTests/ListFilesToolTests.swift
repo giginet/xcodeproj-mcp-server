@@ -6,6 +6,7 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
+@Suite(.temporaryDirectory)
 struct ListFilesToolTests {
 
     @Test func testListFilesToolCreation() {
@@ -42,16 +43,9 @@ struct ListFilesToolTests {
     }
 
     @Test func testListFilesWithEmptyTarget() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let tempDir = TemporaryDirectory.url
 
         let tool = ListFilesTool(pathUtility: PathUtility(basePath: tempDir.path))
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
 
         // Create a test project with target using XcodeProj
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -76,16 +70,9 @@ struct ListFilesToolTests {
     }
 
     @Test func testListFilesWithInvalidTarget() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let tempDir = TemporaryDirectory.url
 
         let tool = ListFilesTool(pathUtility: PathUtility(basePath: tempDir.path))
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
 
         // Create a test project with target using XcodeProj
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -104,16 +91,9 @@ struct ListFilesToolTests {
     }
 
     @Test func testListFilesWithSourceFiles() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let tempDir = TemporaryDirectory.url
 
         let tool = ListFilesTool(pathUtility: PathUtility(basePath: tempDir.path))
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
 
         // Create a test project with target using XcodeProj
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"

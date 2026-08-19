@@ -6,7 +6,7 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
-@Suite("RemoveFileTool Tests")
+@Suite("RemoveFileTool Tests", .temporaryDirectory)
 struct RemoveFileToolTests {
     @Test("Tool creation")
     func toolCreation() {
@@ -38,14 +38,7 @@ struct RemoveFileToolTests {
 
     @Test("Remove file from project")
     func removeFile() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -103,14 +96,7 @@ struct RemoveFileToolTests {
 
     @Test("Remove file from disk")
     func removeFileFromDisk() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -150,14 +136,7 @@ struct RemoveFileToolTests {
 
     @Test("Remove non-existent file")
     func removeNonExistentFile() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"

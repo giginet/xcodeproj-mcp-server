@@ -6,7 +6,7 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
-@Suite("AddSwiftPackageTool Tests")
+@Suite("AddSwiftPackageTool Tests", .temporaryDirectory)
 struct AddSwiftPackageToolTests {
     @Test("Tool creation")
     func toolCreation() {
@@ -48,13 +48,7 @@ struct AddSwiftPackageToolTests {
 
     @Test("Add Swift Package with exact version")
     func addSwiftPackageWithExactVersion() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
@@ -88,13 +82,7 @@ struct AddSwiftPackageToolTests {
 
     @Test("Add Swift Package with from version")
     func addSwiftPackageWithFromVersion() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
@@ -127,13 +115,7 @@ struct AddSwiftPackageToolTests {
 
     @Test("Add Swift Package with branch")
     func addSwiftPackageWithBranch() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
@@ -165,13 +147,7 @@ struct AddSwiftPackageToolTests {
 
     @Test("Add Swift Package to specific target")
     func addSwiftPackageToSpecificTarget() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -210,13 +186,7 @@ struct AddSwiftPackageToolTests {
 
     @Test("Add duplicate Swift Package")
     func addDuplicateSwiftPackage() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
@@ -243,13 +213,7 @@ struct AddSwiftPackageToolTests {
 
     @Test("Add package with invalid target")
     func addPackageWithInvalidTarget() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)

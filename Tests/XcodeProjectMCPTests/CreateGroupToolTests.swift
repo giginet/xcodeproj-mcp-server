@@ -6,7 +6,7 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
-@Suite("CreateGroupTool Tests")
+@Suite("CreateGroupTool Tests", .temporaryDirectory)
 struct CreateGroupToolTests {
     @Test("Tool creation")
     func toolCreation() {
@@ -38,14 +38,7 @@ struct CreateGroupToolTests {
 
     @Test("Create group in main group")
     func createGroupInMainGroup() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -76,14 +69,7 @@ struct CreateGroupToolTests {
 
     @Test("Create group with path")
     func createGroupWithPath() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -115,14 +101,7 @@ struct CreateGroupToolTests {
 
     @Test("Create group in parent group")
     func createGroupInParentGroup() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -170,14 +149,7 @@ struct CreateGroupToolTests {
 
     @Test("Create duplicate group")
     func createDuplicateGroup() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -205,13 +177,7 @@ struct CreateGroupToolTests {
 
     @Test("Create group in nested parent group using hierarchical path")
     func createGroupInNestedParentGroup() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithNestedGroups(
@@ -246,14 +212,7 @@ struct CreateGroupToolTests {
 
     @Test("Create group with non-existent parent")
     func createGroupWithNonExistentParent() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
