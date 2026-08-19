@@ -6,7 +6,7 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
-@Suite("AddAppExtensionTool Tests")
+@Suite("AddAppExtensionTool Tests", .temporaryDirectory)
 struct AddAppExtensionToolTests {
     @Test("Tool creation")
     func toolCreation() {
@@ -77,14 +77,7 @@ struct AddAppExtensionToolTests {
 
     @Test("Add widget extension")
     func addWidgetExtension() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -128,14 +121,7 @@ struct AddAppExtensionToolTests {
 
     @Test("Add notification service extension")
     func addNotificationServiceExtension() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -168,14 +154,7 @@ struct AddAppExtensionToolTests {
 
     @Test("Add share extension")
     func addShareExtension() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -207,14 +186,7 @@ struct AddAppExtensionToolTests {
 
     @Test("Add extension with deployment target")
     func addExtensionWithDeploymentTarget() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -250,14 +222,7 @@ struct AddAppExtensionToolTests {
 
     @Test("Add duplicate extension")
     func addDuplicateExtension() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -287,14 +252,7 @@ struct AddAppExtensionToolTests {
 
     @Test("Add extension with non-existent host target")
     func addExtensionWithNonExistentHostTarget() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProject(name: "TestProject", at: projectPath)
@@ -319,14 +277,7 @@ struct AddAppExtensionToolTests {
 
     @Test("Add extension with invalid extension type")
     func addExtensionWithInvalidExtensionType() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -348,14 +299,7 @@ struct AddAppExtensionToolTests {
 
     @Test("Add extension to non-application target")
     func addExtensionToNonApplicationTarget() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create project with framework target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -390,14 +334,7 @@ struct AddAppExtensionToolTests {
 
     @Test("Add intents extension")
     func addIntentsExtension() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(

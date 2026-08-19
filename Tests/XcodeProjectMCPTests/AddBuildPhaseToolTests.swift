@@ -6,7 +6,7 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
-@Suite("AddBuildPhaseTool Tests")
+@Suite("AddBuildPhaseTool Tests", .temporaryDirectory)
 struct AddBuildPhaseToolTests {
     @Test("Tool creation")
     func toolCreation() {
@@ -60,14 +60,7 @@ struct AddBuildPhaseToolTests {
 
     @Test("Add run script build phase")
     func addRunScriptBuildPhase() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -112,14 +105,7 @@ struct AddBuildPhaseToolTests {
 
     @Test("Add copy files build phase")
     func addCopyFilesBuildPhase() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -174,14 +160,7 @@ struct AddBuildPhaseToolTests {
 
     @Test("Add run script phase without script")
     func addRunScriptPhaseWithoutScript() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -204,14 +183,7 @@ struct AddBuildPhaseToolTests {
 
     @Test("Add copy files phase without destination")
     func addCopyFilesPhaseWithoutDestination() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -234,14 +206,7 @@ struct AddBuildPhaseToolTests {
 
     @Test("Add build phase with invalid phase type")
     func addBuildPhaseWithInvalidPhaseType() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -263,14 +228,7 @@ struct AddBuildPhaseToolTests {
 
     @Test("Add build phase to non-existent target")
     func addBuildPhaseToNonExistentTarget() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"

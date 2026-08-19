@@ -6,7 +6,7 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
-@Suite("MoveFileTool Tests")
+@Suite("MoveFileTool Tests", .temporaryDirectory)
 struct MoveFileToolTests {
     @Test("Tool creation")
     func toolCreation() {
@@ -58,14 +58,7 @@ struct MoveFileToolTests {
 
     @Test("Move file in project")
     func moveFile() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -126,14 +119,7 @@ struct MoveFileToolTests {
 
     @Test("Move file on disk")
     func moveFileOnDisk() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project with target
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
@@ -182,13 +168,7 @@ struct MoveFileToolTests {
 
     @Test("Move file inside a group keeps the reference resolvable")
     func moveFileInGroupKeepsReferenceResolvable() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // The project lives in a subdirectory so that basePath and the project
         // directory are distinct, and the file sits in a group with its own path.
@@ -256,14 +236,7 @@ struct MoveFileToolTests {
 
     @Test("Move non-existent file")
     func moveNonExistentFile() throws {
-        // Create a temporary directory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         // Create a test project
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"

@@ -6,7 +6,7 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
-@Suite("RemoveAppExtensionTool Tests")
+@Suite("RemoveAppExtensionTool Tests", .temporaryDirectory)
 struct RemoveAppExtensionToolTests {
     @Test("Tool creation")
     func toolCreation() {
@@ -41,14 +41,7 @@ struct RemoveAppExtensionToolTests {
 
     @Test("Remove widget extension")
     func removeWidgetExtension() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -93,14 +86,7 @@ struct RemoveAppExtensionToolTests {
 
     @Test("Remove non-existent extension")
     func removeNonExistentExtension() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -121,14 +107,7 @@ struct RemoveAppExtensionToolTests {
 
     @Test("Remove non-extension target fails")
     func removeNonExtensionTargetFails() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -149,14 +128,7 @@ struct RemoveAppExtensionToolTests {
 
     @Test("Remove extension cleans up embed phase")
     func removeExtensionCleansUpEmbedPhase() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(
@@ -193,14 +165,7 @@ struct RemoveAppExtensionToolTests {
 
     @Test("Remove multiple extensions")
     func removeMultipleExtensions() throws {
-        let tempDir = FileManager.default.temporaryDirectory.appending(
-            component:
-                UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
+        let tempDir = TemporaryDirectory.url
 
         let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
         try TestProjectHelper.createTestProjectWithTarget(

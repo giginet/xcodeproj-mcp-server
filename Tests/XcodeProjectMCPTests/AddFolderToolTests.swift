@@ -6,17 +6,14 @@ import XcodeProj
 
 @testable import XcodeProjectMCP
 
+@Suite(.temporaryDirectory)
 struct AddFolderToolTests {
     let tempDir: String
     let pathUtility: PathUtility
 
     init() {
-        self.tempDir =
-            FileManager.default.temporaryDirectory
-            .appendingPathComponent("AddFolderToolTests-\(UUID().uuidString)")
-            .path
+        self.tempDir = TemporaryDirectory.url.path
         self.pathUtility = PathUtility(basePath: tempDir)
-        try? FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
     }
 
     @Test("Tool has correct properties")
@@ -194,9 +191,6 @@ struct AddFolderToolTests {
                 "folder_path": .string("/path/that/does/not/exist"),
             ])
         }
-
-        // Clean up
-        try FileManager.default.removeItem(atPath: projectPath.string)
     }
 
     @Test("Fails when path is not a directory")
@@ -219,9 +213,5 @@ struct AddFolderToolTests {
                 "folder_path": .string(filePath.string),
             ])
         }
-
-        // Clean up
-        try FileManager.default.removeItem(atPath: projectPath.string)
-        try FileManager.default.removeItem(atPath: filePath.string)
     }
 }

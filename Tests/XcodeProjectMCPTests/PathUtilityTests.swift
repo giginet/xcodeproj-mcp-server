@@ -3,6 +3,7 @@ import Testing
 
 @testable import XcodeProjectMCP
 
+@Suite(.temporaryDirectory)
 struct PathUtilityTests {
 
     @Test func testRelativePathResolution() throws {
@@ -49,16 +50,9 @@ struct PathUtilityTests {
     }
 
     @Test func testDotDotPathResolution() throws {
-        // Create a temporary subdirectory
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let tempDir = TemporaryDirectory.url
         let basePath = tempDir.appendingPathComponent("projects").path
         try FileManager.default.createDirectory(atPath: basePath, withIntermediateDirectories: true)
-
-        defer {
-            try? FileManager.default.removeItem(at: tempDir)
-        }
 
         let pathUtility = PathUtility(basePath: basePath)
 
