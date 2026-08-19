@@ -81,10 +81,10 @@ container image pull ghcr.io/giginet/xcodeproj-mcp-server:latest
 #### Configuration for Claude Code
 
 ```bash
-claude mcp add xcodeproj -- container run --rm -i -v $PWD:/workspace ghcr.io/giginet/xcodeproj-mcp-server:latest /workspace
+claude mcp add xcodeproj -- container run --rm -i -v '${CLAUDE_PROJECT_DIR:-.}:/workspace' ghcr.io/giginet/xcodeproj-mcp-server:latest /workspace
 ```
 
-We need to mount the current working directory (`$PWD`) to `/workspace` inside the container. This allows the server to access your Xcode projects.
+This mounts the project directory to `/workspace` inside the container, which is how the server gets access to your Xcode projects. Keep the single quotes: they stop your shell from expanding the mount at registration time, so Claude Code resolves it every time it launches the server instead of pinning it to the directory you happened to run `claude mcp add` from. It falls back to `.`, the working directory Claude Code starts the server in, which is the project root.
 
 #### Configuration for Claude Desktop
 
@@ -140,10 +140,10 @@ docker pull ghcr.io/giginet/xcodeproj-mcp-server
 #### Configuration for Claude Code
 
 ```bash
-claude mcp add xcodeproj -- docker run --pull=always --rm -i -v $PWD:/workspace ghcr.io/giginet/xcodeproj-mcp-server:latest /workspace
+claude mcp add xcodeproj -- docker run --pull=always --rm -i -v '${CLAUDE_PROJECT_DIR:-.}:/workspace' ghcr.io/giginet/xcodeproj-mcp-server:latest /workspace
 ```
 
-As with `container`, the current working directory (`$PWD`) is mounted to `/workspace` inside the container so that the server can access your Xcode projects.
+As with `container`, the project directory is mounted to `/workspace` inside the container so that the server can access your Xcode projects, and the single quotes keep the mount unexpanded until Claude Code launches the server.
 
 #### Configuration for Claude Desktop
 
@@ -176,7 +176,7 @@ Xcode can run Claude Code and Codex as coding agents, and it reads their configu
 
 Two things differ from the command-line setup:
 
-- Xcode launches the MCP server with the project directory as its working directory, so mount `.` rather than `$PWD`.
+- Xcode launches the MCP server with the project directory as its working directory, so mount `.` directly. Codex has no equivalent of Claude Code's `${CLAUDE_PROJECT_DIR:-.}` expansion, so this keeps both agents on the same mount.
 - Give `command` an absolute path, because the agent's environment does not necessarily have `/usr/local/bin` on its `PATH`.
 
 #### Claude Code in Xcode
