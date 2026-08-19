@@ -24,7 +24,8 @@ public struct RemoveFileTool: Sendable {
                     "file_path": .object([
                         "type": .string("string"),
                         "description": .string(
-                            "Path to the file to remove (relative to project root or absolute)"),
+                            "Path to the file to remove (absolute, or relative to the base directory the server was started with)"
+                        ),
                     ]),
                     "remove_from_disk": .object([
                         "type": .string("boolean"),
