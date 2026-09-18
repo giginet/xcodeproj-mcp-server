@@ -2,18 +2,22 @@ import Foundation
 import MCP
 import PathKit
 import XcodeProj
+import XcodeProjectFormat
 
 public struct CreateGroupTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "create_group",
-            description: "Create a new group in the project navigator",
+            description:
+                "Create a new group in the project navigator",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -65,51 +69,87 @@ public struct CreateGroupTool: Sendable {
         }
 
         do {
-            // Resolve and validate the project path
-            let resolvedProjectPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedProjectPath)
+            let (loadedProject, projectURL) = try projectLoader.load(projectPath: projectPath)
 
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                // Check if group already exists
+                if xcodeproj.pbxproj.groups.contains(where: { $0.name == groupName }) {
+                    return CallTool.Result(
+                        content: [
+                            .text("Group '\(groupName)' already exists in project")
+                        ]
+                    )
+                }
 
-            // Check if group already exists
-            if xcodeproj.pbxproj.groups.contains(where: { $0.name == groupName }) {
-                return CallTool.Result(
-                    content: [
-                        .text("Group '\(groupName)' already exists in project")
-                    ]
+                // Create new group
+                let newGroup = PBXGroup(sourceTree: .group, name: groupName, path: groupPath)
+                xcodeproj.pbxproj.add(object: newGroup)
+
+                // Find parent group
+                let parentGroup: PBXGroup
+                if let parentGroupName = parentGroupName {
+                    // Find group by name, path, or hierarchical path (e.g. "Parent/Child")
+                    do {
+                        parentGroup = try GroupFinder.findGroup(
+                            named: parentGroupName, in: xcodeproj.pbxproj)
+                    } catch {
+                        throw MCPError.invalidParams(
+                            "Parent group '\(parentGroupName)' not found in project")
+                    }
+                } else {
+                    // Use main group
+                    guard let project = try xcodeproj.pbxproj.rootProject(),
+                        let mainGroup = project.mainGroup
+                    else {
+                        throw MCPError.internalError("Main group not found in project")
+                    }
+                    parentGroup = mainGroup
+                }
+
+                // Add new group to parent
+                parentGroup.children.append(newGroup)
+
+                // Save project
+                try xcodeproj.write(path: Path(projectURL.path))
+            case .xcproj(var file):
+                if XCProjTreeEditor.containsGroup(
+                    named: groupName, in: file.project.topLevelReferences)
+                {
+                    return CallTool.Result(
+                        content: [
+                            .text("Group '\(groupName)' already exists in project")
+                        ]
+                    )
+                }
+
+                let parentIndexPath: [Int]?
+                if let parentGroupName = parentGroupName {
+                    guard
+                        let indexPath = XCProjTreeEditor.findGroup(
+                            named: parentGroupName, in: file.project.topLevelReferences)
+                    else {
+                        throw MCPError.invalidParams(
+                            "Parent group '\(parentGroupName)' not found in project")
+                    }
+                    parentIndexPath = indexPath
+                } else {
+                    parentIndexPath = nil
+                }
+
+                let newGroup = XCSchema.Group(
+                    objectID: nil,
+                    name: groupName,
+                    path: XCSchema.FilePath(stringLiteral: groupPath ?? ""),
+                    includeInIndex: nil,
+                    children: []
                 )
+                XCProjTreeEditor.append(
+                    .group(newGroup), toGroupAt: parentIndexPath,
+                    in: &file.project.topLevelReferences)
+
+                try file.save()
             }
-
-            // Create new group
-            let newGroup = PBXGroup(sourceTree: .group, name: groupName, path: groupPath)
-            xcodeproj.pbxproj.add(object: newGroup)
-
-            // Find parent group
-            let parentGroup: PBXGroup
-            if let parentGroupName = parentGroupName {
-                // Find group by name, path, or hierarchical path (e.g. "Parent/Child")
-                do {
-                    parentGroup = try GroupFinder.findGroup(
-                        named: parentGroupName, in: xcodeproj.pbxproj)
-                } catch {
-                    throw MCPError.invalidParams(
-                        "Parent group '\(parentGroupName)' not found in project")
-                }
-            } else {
-                // Use main group
-                guard let project = try xcodeproj.pbxproj.rootProject(),
-                    let mainGroup = project.mainGroup
-                else {
-                    throw MCPError.internalError("Main group not found in project")
-                }
-                parentGroup = mainGroup
-            }
-
-            // Add new group to parent
-            parentGroup.children.append(newGroup)
-
-            // Save project
-            try xcodeproj.write(path: Path(projectURL.path))
 
             return CallTool.Result(
                 content: [

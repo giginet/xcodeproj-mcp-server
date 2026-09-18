@@ -2,18 +2,22 @@ import Foundation
 import MCP
 import PathKit
 import XcodeProj
+import XcodeProjectFormat
 
 public struct AddFolderTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "add_synchronized_folder",
-            description: "Add a synchronized folder reference to an Xcode project",
+            description:
+                "Add a synchronized folder reference to an Xcode project",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -67,9 +71,7 @@ public struct AddFolderTool: Sendable {
         }
 
         do {
-            // Resolve and validate the project path
-            let resolvedProjectPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(filePath: resolvedProjectPath)
+            let (loadedProject, projectURL) = try projectLoader.load(projectPath: projectPath)
 
             // Resolve and validate the folder path
             let resolvedFolderPath = try pathUtility.resolvePath(from: folderPath)
@@ -85,73 +87,112 @@ public struct AddFolderTool: Sendable {
                 throw MCPError.invalidParams("Path is not a directory: \(folderPath)")
             }
 
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
-
-            // Create file system synchronized root group
             let folderName = URL(filePath: resolvedFolderPath).lastPathComponent
             // Use relative path from project for folder reference
             let relativePath =
                 pathUtility.makeRelativePath(from: resolvedFolderPath) ?? resolvedFolderPath
 
-            let folderReference = PBXFileSystemSynchronizedRootGroup(
-                sourceTree: .group,
-                path: relativePath,
-                name: folderName
-            )
-            xcodeproj.pbxproj.add(object: folderReference)
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                // Create file system synchronized root group
+                let folderReference = PBXFileSystemSynchronizedRootGroup(
+                    sourceTree: .group,
+                    path: relativePath,
+                    name: folderName
+                )
+                xcodeproj.pbxproj.add(object: folderReference)
 
-            // Find the group to add the folder to
-            let targetGroup: PBXGroup
-            if let groupName = groupName {
-                // Find group by name, path, or hierarchical path (e.g. "Parent/Child")
-                do {
-                    targetGroup = try GroupFinder.findGroup(
-                        named: groupName, in: xcodeproj.pbxproj)
-                } catch {
-                    throw MCPError.invalidParams("Group '\(groupName)' not found in project")
-                }
-            } else {
-                // Use main group
-                guard let project = try xcodeproj.pbxproj.rootProject(),
-                    let mainGroup = project.mainGroup
-                else {
-                    throw MCPError.internalError("Main group not found in project")
-                }
-                targetGroup = mainGroup
-            }
-
-            // Add folder to group
-            targetGroup.children.append(folderReference)
-
-            // Add folder to target if specified
-            if let targetName = targetName {
-                guard
-                    let target = xcodeproj.pbxproj.nativeTargets.first(where: {
-                        $0.name == targetName
-                    })
-                else {
-                    throw MCPError.invalidParams("Target '\(targetName)' not found in project")
-                }
-
-                // Create build file for the folder
-                let buildFile = PBXBuildFile(file: folderReference)
-                xcodeproj.pbxproj.add(object: buildFile)
-
-                // Add to resources build phase
-                if let resourcesBuildPhase = target.buildPhases.first(where: {
-                    $0 is PBXResourcesBuildPhase
-                }) as? PBXResourcesBuildPhase {
-                    resourcesBuildPhase.files?.append(buildFile)
+                // Find the group to add the folder to
+                let targetGroup: PBXGroup
+                if let groupName = groupName {
+                    // Find group by name, path, or hierarchical path (e.g. "Parent/Child")
+                    do {
+                        targetGroup = try GroupFinder.findGroup(
+                            named: groupName, in: xcodeproj.pbxproj)
+                    } catch {
+                        throw MCPError.invalidParams("Group '\(groupName)' not found in project")
+                    }
                 } else {
-                    // Create resources build phase if it doesn't exist
-                    let resourcesBuildPhase = PBXResourcesBuildPhase(files: [buildFile])
-                    xcodeproj.pbxproj.add(object: resourcesBuildPhase)
-                    target.buildPhases.append(resourcesBuildPhase)
+                    // Use main group
+                    guard let project = try xcodeproj.pbxproj.rootProject(),
+                        let mainGroup = project.mainGroup
+                    else {
+                        throw MCPError.internalError("Main group not found in project")
+                    }
+                    targetGroup = mainGroup
                 }
-            }
 
-            // Write project
-            try xcodeproj.write(path: Path(projectURL.path))
+                // Add folder to group
+                targetGroup.children.append(folderReference)
+
+                // Add folder to target if specified
+                if let targetName = targetName {
+                    guard
+                        let target = xcodeproj.pbxproj.nativeTargets.first(where: {
+                            $0.name == targetName
+                        })
+                    else {
+                        throw MCPError.invalidParams("Target '\(targetName)' not found in project")
+                    }
+
+                    // Create build file for the folder
+                    let buildFile = PBXBuildFile(file: folderReference)
+                    xcodeproj.pbxproj.add(object: buildFile)
+
+                    // Add to resources build phase
+                    if let resourcesBuildPhase = target.buildPhases.first(where: {
+                        $0 is PBXResourcesBuildPhase
+                    }) as? PBXResourcesBuildPhase {
+                        resourcesBuildPhase.files?.append(buildFile)
+                    } else {
+                        // Create resources build phase if it doesn't exist
+                        let resourcesBuildPhase = PBXResourcesBuildPhase(files: [buildFile])
+                        xcodeproj.pbxproj.add(object: resourcesBuildPhase)
+                        target.buildPhases.append(resourcesBuildPhase)
+                    }
+                }
+
+                // Write project
+                try xcodeproj.write(path: Path(projectURL.path))
+            case .xcproj(var file):
+                let groupIndexPath: [Int]?
+                if let groupName = groupName {
+                    guard
+                        let indexPath = XCProjTreeEditor.findGroup(
+                            named: groupName, in: file.project.topLevelReferences)
+                    else {
+                        throw MCPError.invalidParams("Group '\(groupName)' not found in project")
+                    }
+                    groupIndexPath = indexPath
+                } else {
+                    groupIndexPath = nil
+                }
+
+                // In xcproj, target membership of a synchronized folder is the
+                // folder's own `targets` set -- no build file needed.
+                var memberTargets: Set<XCSchema.LocalTargetReference> = []
+                if let targetName = targetName {
+                    guard file.project.targets.contains(where: { $0.name == targetName }) else {
+                        throw MCPError.invalidParams("Target '\(targetName)' not found in project")
+                    }
+                    memberTargets.insert(XCSchema.LocalTargetReference(targetName: targetName))
+                }
+
+                let folder = XCSchema.Folder(
+                    objectID: nil,
+                    path: try XCSchema.FilePath(base: .group, path: relativePath),
+                    targets: memberTargets,
+                    membershipExceptions: [],
+                    explicitFileTypes: [:],
+                    explicitOpaqueFolders: [],
+                    includeInIndex: nil
+                )
+                XCProjTreeEditor.append(
+                    .folder(folder), toGroupAt: groupIndexPath,
+                    in: &file.project.topLevelReferences)
+
+                try file.save()
+            }
 
             let targetInfo = targetName != nil ? " to target '\(targetName!)'" : ""
             let groupInfo = groupName != nil ? " in group '\(groupName!)'" : ""

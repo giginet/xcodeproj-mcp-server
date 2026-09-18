@@ -5,9 +5,11 @@ import XcodeProj
 
 public struct ListFilesTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
@@ -42,54 +44,60 @@ public struct ListFilesTool: Sendable {
         }
 
         do {
-            // Resolve and validate the path
-            let resolvedPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedPath)
-
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
-
-            // Find the target by name
-            guard
-                let target = xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == targetName })
-            else {
-                throw MCPError.invalidParams("Target '\(targetName)' not found in project")
-            }
+            let (loadedProject, _) = try projectLoader.load(projectPath: projectPath)
 
             var fileList: [String] = []
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                // Find the target by name
+                guard
+                    let target = xcodeproj.pbxproj.nativeTargets.first(where: {
+                        $0.name == targetName
+                    })
+                else {
+                    throw MCPError.invalidParams("Target '\(targetName)' not found in project")
+                }
 
-            // Get files from build phases
-            for buildPhase in target.buildPhases {
-                if let sourcesBuildPhase = buildPhase as? PBXSourcesBuildPhase {
-                    for file in sourcesBuildPhase.files ?? [] {
-                        if let fileRef = file.file {
-                            if let path = fileRef.path {
-                                fileList.append("- \(path)")
-                            } else if let name = fileRef.name {
-                                fileList.append("- \(name)")
+                // Get files from build phases
+                for buildPhase in target.buildPhases {
+                    if let sourcesBuildPhase = buildPhase as? PBXSourcesBuildPhase {
+                        for file in sourcesBuildPhase.files ?? [] {
+                            if let fileRef = file.file {
+                                if let path = fileRef.path {
+                                    fileList.append("- \(path)")
+                                } else if let name = fileRef.name {
+                                    fileList.append("- \(name)")
+                                }
                             }
                         }
-                    }
-                } else if let resourcesBuildPhase = buildPhase as? PBXResourcesBuildPhase {
-                    for file in resourcesBuildPhase.files ?? [] {
-                        if let fileRef = file.file {
-                            if let path = fileRef.path {
-                                fileList.append("- \(path)")
-                            } else if let name = fileRef.name {
-                                fileList.append("- \(name)")
+                    } else if let resourcesBuildPhase = buildPhase as? PBXResourcesBuildPhase {
+                        for file in resourcesBuildPhase.files ?? [] {
+                            if let fileRef = file.file {
+                                if let path = fileRef.path {
+                                    fileList.append("- \(path)")
+                                } else if let name = fileRef.name {
+                                    fileList.append("- \(name)")
+                                }
                             }
                         }
-                    }
-                } else if let frameworksBuildPhase = buildPhase as? PBXFrameworksBuildPhase {
-                    for file in frameworksBuildPhase.files ?? [] {
-                        if let fileRef = file.file {
-                            if let path = fileRef.path {
-                                fileList.append("- \(path)")
-                            } else if let name = fileRef.name {
-                                fileList.append("- \(name)")
+                    } else if let frameworksBuildPhase = buildPhase as? PBXFrameworksBuildPhase {
+                        for file in frameworksBuildPhase.files ?? [] {
+                            if let fileRef = file.file {
+                                if let path = fileRef.path {
+                                    fileList.append("- \(path)")
+                                } else if let name = fileRef.name {
+                                    fileList.append("- \(name)")
+                                }
                             }
                         }
                     }
                 }
+            case .xcproj(let file):
+                guard let files = XCProjSupport.files(inTarget: targetName, of: file.project)
+                else {
+                    throw MCPError.invalidParams("Target '\(targetName)' not found in project")
+                }
+                fileList = files.map { "- \($0)" }
             }
 
             let result =

@@ -60,4 +60,21 @@ struct ListBuildConfigurationsToolTests {
             Issue.record("Expected text content")
         }
     }
+
+    @Test("List build configurations in both formats", arguments: ProjectFormat.allCases)
+    func listBuildConfigurationsInBothFormats(format: ProjectFormat) throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestProjectFixture.createProject(format: format, name: "TestProject", at: projectPath)
+
+        let tool = ListBuildConfigurationsTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: ["project_path": .string(projectPath.string)])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("- Debug"))
+        #expect(message.contains("- Release"))
+    }
 }

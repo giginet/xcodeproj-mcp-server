@@ -2,18 +2,22 @@ import Foundation
 import MCP
 import PathKit
 import XcodeProj
+import XcodeProjectFormat
 
 public struct DuplicateTargetTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "duplicate_target",
-            description: "Duplicate an existing target",
+            description:
+                "Duplicate an existing target",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -59,155 +63,103 @@ public struct DuplicateTargetTool: Sendable {
         }
 
         do {
-            // Resolve and validate the project path
-            let resolvedProjectPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedProjectPath)
+            let (loadedProject, projectURL) = try projectLoader.load(projectPath: projectPath)
 
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
-
-            // Find the source target
-            guard
-                let sourceTarget = xcodeproj.pbxproj.nativeTargets.first(where: {
-                    $0.name == sourceTargetName
-                })
-            else {
-                return CallTool.Result(
-                    content: [
-                        .text("Source target '\(sourceTargetName)' not found in project")
-                    ]
-                )
-            }
-
-            // Check if target with new name already exists
-            if xcodeproj.pbxproj.nativeTargets.contains(where: { $0.name == newTargetName }) {
-                return CallTool.Result(
-                    content: [
-                        .text("Target '\(newTargetName)' already exists in project")
-                    ]
-                )
-            }
-
-            // Duplicate build configuration list
-            let newBuildConfigurations: [XCBuildConfiguration] =
-                sourceTarget.buildConfigurationList?.buildConfigurations.map { sourceConfig in
-                    var newBuildSettings = sourceConfig.buildSettings
-
-                    // Update product name and bundle identifier
-                    newBuildSettings["PRODUCT_NAME"] = .string(newTargetName)
-                    if let newBundleIdentifier = newBundleIdentifier {
-                        newBuildSettings["BUNDLE_IDENTIFIER"] = .string(newBundleIdentifier)
-                    }
-
-                    // Update info plist if it references the target name
-                    if let infoPlist = newBuildSettings["INFOPLIST_FILE"]?.stringValue,
-                        infoPlist.contains(sourceTargetName)
-                    {
-                        let newInfoPlist = infoPlist.replacingOccurrences(
-                            of: sourceTargetName, with: newTargetName)
-                        newBuildSettings["INFOPLIST_FILE"] = .string(newInfoPlist)
-                    }
-
-                    let newConfig = XCBuildConfiguration(
-                        name: sourceConfig.name, buildSettings: newBuildSettings)
-                    xcodeproj.pbxproj.add(object: newConfig)
-                    return newConfig
-                } ?? []
-
-            let newConfigList = XCConfigurationList(
-                buildConfigurations: newBuildConfigurations,
-                defaultConfigurationName: sourceTarget.buildConfigurationList?
-                    .defaultConfigurationName ?? "Release"
-            )
-            xcodeproj.pbxproj.add(object: newConfigList)
-
-            // Duplicate build phases
-            let newBuildPhases: [PBXBuildPhase] = sourceTarget.buildPhases.compactMap {
-                sourcePhase in
-                if let sourcesPhase = sourcePhase as? PBXSourcesBuildPhase {
-                    let newPhase = PBXSourcesBuildPhase(files: sourcesPhase.files ?? [])
-                    xcodeproj.pbxproj.add(object: newPhase)
-                    return newPhase
-                } else if let resourcesPhase = sourcePhase as? PBXResourcesBuildPhase {
-                    let newPhase = PBXResourcesBuildPhase(files: resourcesPhase.files ?? [])
-                    xcodeproj.pbxproj.add(object: newPhase)
-                    return newPhase
-                } else if let frameworksPhase = sourcePhase as? PBXFrameworksBuildPhase {
-                    let newPhase = PBXFrameworksBuildPhase(files: frameworksPhase.files ?? [])
-                    xcodeproj.pbxproj.add(object: newPhase)
-                    return newPhase
-                } else if let shellScriptPhase = sourcePhase as? PBXShellScriptBuildPhase {
-                    let newPhase = PBXShellScriptBuildPhase(
-                        name: shellScriptPhase.name,
-                        inputPaths: shellScriptPhase.inputPaths,
-                        outputPaths: shellScriptPhase.outputPaths,
-                        shellPath: shellScriptPhase.shellPath ?? "/bin/sh",
-                        shellScript: shellScriptPhase.shellScript
-                    )
-                    xcodeproj.pbxproj.add(object: newPhase)
-                    return newPhase
-                } else if let copyFilesPhase = sourcePhase as? PBXCopyFilesBuildPhase {
-                    let newPhase = PBXCopyFilesBuildPhase(
-                        dstPath: copyFilesPhase.dstPath,
-                        dstSubfolderSpec: copyFilesPhase.dstSubfolderSpec,
-                        name: copyFilesPhase.name,
-                        files: copyFilesPhase.files ?? []
-                    )
-                    xcodeproj.pbxproj.add(object: newPhase)
-                    return newPhase
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                if let earlyResult = try duplicateInPBXProj(
+                    xcodeproj: xcodeproj, projectURL: projectURL,
+                    sourceTargetName: sourceTargetName, newTargetName: newTargetName,
+                    newBundleIdentifier: newBundleIdentifier)
+                {
+                    return earlyResult
                 }
-                return nil
-            }
-
-            // Create new target
-            let newTarget = PBXNativeTarget(
-                name: newTargetName,
-                buildConfigurationList: newConfigList,
-                buildPhases: newBuildPhases,
-                productType: sourceTarget.productType
-            )
-            newTarget.productName = newTargetName
-
-            // Copy dependencies
-            for sourceDependency in sourceTarget.dependencies {
-                if let dependencyTarget = sourceDependency.target {
-                    // Create new proxy
-                    let newProxy = PBXContainerItemProxy(
-                        containerPortal: .project(xcodeproj.pbxproj.rootObject!),
-                        remoteGlobalID: .object(dependencyTarget),
-                        proxyType: .nativeTarget,
-                        remoteInfo: dependencyTarget.name
+            case .xcproj(var file):
+                guard
+                    let sourceTarget = file.project.targets.first(where: {
+                        $0.name == sourceTargetName
+                    })
+                else {
+                    return CallTool.Result(
+                        content: [
+                            .text("Source target '\(sourceTargetName)' not found in project")
+                        ]
                     )
-                    xcodeproj.pbxproj.add(object: newProxy)
-
-                    // Create new dependency
-                    let newDependency = PBXTargetDependency(
-                        name: sourceDependency.name,
-                        target: dependencyTarget,
-                        targetProxy: newProxy
-                    )
-                    xcodeproj.pbxproj.add(object: newDependency)
-                    newTarget.dependencies.append(newDependency)
                 }
+                if file.project.targets.contains(where: { $0.name == newTargetName }) {
+                    return CallTool.Result(
+                        content: [
+                            .text("Target '\(newTargetName)' already exists in project")
+                        ]
+                    )
+                }
+
+                // Value copy of the whole target; every phase object ID must be
+                // re-minted, and the tree swept to duplicate matching
+                // membership entries onto the new target.
+                var newProperties = sourceTarget.commonProperties
+                newProperties.name = newTargetName
+                newProperties.objectID = XCProjSupport.makeObjectID()
+                newProperties.product = nil
+                let (newPhases, phaseIDMapping) = XCProjSupport.withReassignedPhaseObjectIDs(
+                    newProperties.buildPhases)
+                newProperties.buildPhases = newPhases
+
+                newProperties.buildSettings["PRODUCT_NAME"] = .string(newTargetName)
+                if let newBundleIdentifier = newBundleIdentifier {
+                    newProperties.buildSettings["BUNDLE_IDENTIFIER"] = .string(
+                        newBundleIdentifier)
+                }
+                if case .string(let infoPlist)? = newProperties.buildSettings["INFOPLIST_FILE"],
+                    infoPlist.contains(sourceTargetName)
+                {
+                    newProperties.buildSettings["INFOPLIST_FILE"] = .string(
+                        infoPlist.replacingOccurrences(
+                            of: sourceTargetName, with: newTargetName))
+                }
+
+                file.project.targets.append(.native(newProperties))
+
+                // Duplicate membership entries pointing at the source target
+                XCProjTreeEditor.mutateFileReferences(in: &file.project.topLevelReferences) {
+                    fileReference in
+                    var duplicated: [XCSchema.ProjectBuildFile] = []
+                    for buildFile in fileReference.buildFiles {
+                        switch buildFile.buildPhase {
+                        case .named(let target, let kind, let phaseName)
+                        where target.targetName == sourceTargetName:
+                            duplicated.append(
+                                XCSchema.ProjectBuildFile(
+                                    objectID: nil,
+                                    buildPhase: .named(
+                                        target: XCSchema.LocalTargetReference(
+                                            targetName: newTargetName),
+                                        kind: kind, name: phaseName),
+                                    properties: buildFile.properties))
+                        case .objectID(let id):
+                            if let newID = phaseIDMapping[id] {
+                                duplicated.append(
+                                    XCSchema.ProjectBuildFile(
+                                        objectID: nil,
+                                        buildPhase: .objectID(newID),
+                                        properties: buildFile.properties))
+                            }
+                        case .named:
+                            continue
+                        }
+                    }
+                    fileReference.buildFiles.append(contentsOf: duplicated)
+                }
+
+                // Create target folder at the top level, mirroring the pbxproj arm
+                file.project.topLevelReferences.append(
+                    .group(
+                        XCSchema.Group(
+                            objectID: nil, name: newTargetName, path: "", includeInIndex: nil,
+                            children: [])))
+
+                try file.save()
             }
-
-            xcodeproj.pbxproj.add(object: newTarget)
-
-            // Add target to project
-            if let project = xcodeproj.pbxproj.rootObject {
-                project.targets.append(newTarget)
-            }
-
-            // Create target folder in main group
-            if let project = try xcodeproj.pbxproj.rootProject(),
-                let mainGroup = project.mainGroup
-            {
-                let targetGroup = PBXGroup(sourceTree: .group, name: newTargetName)
-                xcodeproj.pbxproj.add(object: targetGroup)
-                mainGroup.children.append(targetGroup)
-            }
-
-            // Save project
-            try xcodeproj.write(path: Path(projectURL.path))
 
             let bundleIdText =
                 newBundleIdentifier != nil
@@ -223,5 +175,158 @@ public struct DuplicateTargetTool: Sendable {
             throw MCPError.internalError(
                 "Failed to duplicate target in Xcode project: \(error.descriptiveMessage)")
         }
+    }
+
+    /// Returns a Result only for early-exit conditions (target missing or name
+    /// taken); nil on success.
+    private func duplicateInPBXProj(
+        xcodeproj: XcodeProj, projectURL: URL, sourceTargetName: String, newTargetName: String,
+        newBundleIdentifier: String?
+    ) throws -> CallTool.Result? {
+        // Find the source target
+        guard
+            let sourceTarget = xcodeproj.pbxproj.nativeTargets.first(where: {
+                $0.name == sourceTargetName
+            })
+        else {
+            return CallTool.Result(
+                content: [
+                    .text("Source target '\(sourceTargetName)' not found in project")
+                ]
+            )
+        }
+
+        // Check if target with new name already exists
+        if xcodeproj.pbxproj.nativeTargets.contains(where: { $0.name == newTargetName }) {
+            return CallTool.Result(
+                content: [
+                    .text("Target '\(newTargetName)' already exists in project")
+                ]
+            )
+        }
+
+        // Duplicate build configuration list
+        let newBuildConfigurations: [XCBuildConfiguration] =
+            sourceTarget.buildConfigurationList?.buildConfigurations.map { sourceConfig in
+                var newBuildSettings = sourceConfig.buildSettings
+
+                // Update product name and bundle identifier
+                newBuildSettings["PRODUCT_NAME"] = .string(newTargetName)
+                if let newBundleIdentifier = newBundleIdentifier {
+                    newBuildSettings["BUNDLE_IDENTIFIER"] = .string(newBundleIdentifier)
+                }
+
+                // Update info plist if it references the target name
+                if let infoPlist = newBuildSettings["INFOPLIST_FILE"]?.stringValue,
+                    infoPlist.contains(sourceTargetName)
+                {
+                    let newInfoPlist = infoPlist.replacingOccurrences(
+                        of: sourceTargetName, with: newTargetName)
+                    newBuildSettings["INFOPLIST_FILE"] = .string(newInfoPlist)
+                }
+
+                let newConfig = XCBuildConfiguration(
+                    name: sourceConfig.name, buildSettings: newBuildSettings)
+                xcodeproj.pbxproj.add(object: newConfig)
+                return newConfig
+            } ?? []
+
+        let newConfigList = XCConfigurationList(
+            buildConfigurations: newBuildConfigurations,
+            defaultConfigurationName: sourceTarget.buildConfigurationList?
+                .defaultConfigurationName ?? "Release"
+        )
+        xcodeproj.pbxproj.add(object: newConfigList)
+
+        // Duplicate build phases
+        let newBuildPhases: [PBXBuildPhase] = sourceTarget.buildPhases.compactMap {
+            sourcePhase in
+            if let sourcesPhase = sourcePhase as? PBXSourcesBuildPhase {
+                let newPhase = PBXSourcesBuildPhase(files: sourcesPhase.files ?? [])
+                xcodeproj.pbxproj.add(object: newPhase)
+                return newPhase
+            } else if let resourcesPhase = sourcePhase as? PBXResourcesBuildPhase {
+                let newPhase = PBXResourcesBuildPhase(files: resourcesPhase.files ?? [])
+                xcodeproj.pbxproj.add(object: newPhase)
+                return newPhase
+            } else if let frameworksPhase = sourcePhase as? PBXFrameworksBuildPhase {
+                let newPhase = PBXFrameworksBuildPhase(files: frameworksPhase.files ?? [])
+                xcodeproj.pbxproj.add(object: newPhase)
+                return newPhase
+            } else if let shellScriptPhase = sourcePhase as? PBXShellScriptBuildPhase {
+                let newPhase = PBXShellScriptBuildPhase(
+                    name: shellScriptPhase.name,
+                    inputPaths: shellScriptPhase.inputPaths,
+                    outputPaths: shellScriptPhase.outputPaths,
+                    shellPath: shellScriptPhase.shellPath ?? "/bin/sh",
+                    shellScript: shellScriptPhase.shellScript
+                )
+                xcodeproj.pbxproj.add(object: newPhase)
+                return newPhase
+            } else if let copyFilesPhase = sourcePhase as? PBXCopyFilesBuildPhase {
+                let newPhase = PBXCopyFilesBuildPhase(
+                    dstPath: copyFilesPhase.dstPath,
+                    dstSubfolderSpec: copyFilesPhase.dstSubfolderSpec,
+                    name: copyFilesPhase.name,
+                    files: copyFilesPhase.files ?? []
+                )
+                xcodeproj.pbxproj.add(object: newPhase)
+                return newPhase
+            }
+            return nil
+        }
+
+        // Create new target
+        let newTarget = PBXNativeTarget(
+            name: newTargetName,
+            buildConfigurationList: newConfigList,
+            buildPhases: newBuildPhases,
+            productType: sourceTarget.productType
+        )
+        newTarget.productName = newTargetName
+
+        // Copy dependencies
+        for sourceDependency in sourceTarget.dependencies {
+            if let dependencyTarget = sourceDependency.target {
+                // Create new proxy
+                let newProxy = PBXContainerItemProxy(
+                    containerPortal: .project(xcodeproj.pbxproj.rootObject!),
+                    remoteGlobalID: .object(dependencyTarget),
+                    proxyType: .nativeTarget,
+                    remoteInfo: dependencyTarget.name
+                )
+                xcodeproj.pbxproj.add(object: newProxy)
+
+                // Create new dependency
+                let newDependency = PBXTargetDependency(
+                    name: sourceDependency.name,
+                    target: dependencyTarget,
+                    targetProxy: newProxy
+                )
+                xcodeproj.pbxproj.add(object: newDependency)
+                newTarget.dependencies.append(newDependency)
+            }
+        }
+
+        xcodeproj.pbxproj.add(object: newTarget)
+
+        // Add target to project
+        if let project = xcodeproj.pbxproj.rootObject {
+            project.targets.append(newTarget)
+        }
+
+        // Create target folder in main group
+        if let project = try xcodeproj.pbxproj.rootProject(),
+            let mainGroup = project.mainGroup
+        {
+            let targetGroup = PBXGroup(sourceTree: .group, name: newTargetName)
+            xcodeproj.pbxproj.add(object: targetGroup)
+            mainGroup.children.append(targetGroup)
+        }
+
+        // Save project
+        try xcodeproj.write(path: Path(projectURL.path))
+
+        return nil
     }
 }

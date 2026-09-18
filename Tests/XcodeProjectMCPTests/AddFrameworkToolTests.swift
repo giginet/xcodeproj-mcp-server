@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -14,7 +15,10 @@ struct AddFrameworkToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "add_framework")
-        #expect(toolDefinition.description == "Add framework dependencies")
+        #expect(
+            toolDefinition.description
+                == "Add framework dependencies"
+        )
     }
 
     @Test("Add framework with missing parameters")
@@ -214,5 +218,52 @@ struct AddFrameworkToolTests {
             return
         }
         #expect(message.contains("not found"))
+    }
+
+    @Test("Add system framework in xcproj project")
+    func addSystemFrameworkInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let tool = AddFrameworkTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "target_name": .string("TestApp"),
+            "framework_name": .string("UIKit"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully added framework 'UIKit'"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        // The framework file reference lives in a "Frameworks" group and is
+        // linked into the target's frameworks phase
+        var found = false
+        XCProjTreeEditor.forEachFileReference(in: file.project.topLevelReferences) {
+            fileReference in
+            if fileReference.path.stringRepresentation.hasSuffix("UIKit.framework"),
+                !fileReference.buildFiles.isEmpty
+            {
+                found = true
+            }
+        }
+        #expect(found)
+
+        // Adding it again reports the duplicate
+        let second = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "target_name": .string("TestApp"),
+            "framework_name": .string("UIKit"),
+        ])
+        guard case let .text(secondMessage, _, _) = second.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(secondMessage.contains("already exists"))
     }
 }

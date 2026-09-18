@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -14,7 +15,10 @@ struct RemoveTargetToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "remove_target")
-        #expect(toolDefinition.description == "Remove an existing target")
+        #expect(
+            toolDefinition.description
+                == "Remove an existing target"
+        )
     }
 
     @Test("Remove target with missing project path")
@@ -155,5 +159,56 @@ struct RemoveTargetToolTests {
         let xcodeproj = try XcodeProj(path: projectPath)
         #expect(xcodeproj.pbxproj.nativeTargets.count == 1)
         #expect(xcodeproj.pbxproj.nativeTargets.first?.name == "MainApp")
+    }
+
+    @Test("Remove target from xcproj project sweeps memberships and dependencies")
+    func removeTargetFromXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithFiles(
+            name: "TestProject", targetName: "TestApp",
+            fileNames: ["main.swift"], at: projectPath)
+
+        // Add a second target depending on TestApp
+        _ = try AddTargetTool(pathUtility: PathUtility(basePath: tempDir.path)).execute(
+            arguments: [
+                "project_path": .string(projectPath.string),
+                "target_name": .string("Other"),
+                "product_type": .string("framework"),
+                "bundle_identifier": .string("com.example.other"),
+            ])
+        _ = try AddDependencyTool(pathUtility: PathUtility(basePath: tempDir.path)).execute(
+            arguments: [
+                "project_path": .string(projectPath.string),
+                "target_name": .string("Other"),
+                "dependency_name": .string("TestApp"),
+            ])
+
+        let tool = RemoveTargetTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "target_name": .string("TestApp"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully removed target 'TestApp'"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        #expect(file.project.targets.contains(where: { $0.name == "TestApp" }) == false)
+
+        // The dependency on the removed target is gone
+        let other = file.project.targets.first(where: { $0.name == "Other" })
+        #expect(other?.commonProperties.dependencies.isEmpty == true)
+
+        // The file's membership entry pointing at the removed target is gone
+        var danglingMemberships = 0
+        XCProjTreeEditor.forEachFileReference(in: file.project.topLevelReferences) {
+            fileReference in
+            danglingMemberships += fileReference.buildFiles.count
+        }
+        #expect(danglingMemberships == 0)
     }
 }

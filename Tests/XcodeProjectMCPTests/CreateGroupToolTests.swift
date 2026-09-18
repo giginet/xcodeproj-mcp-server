@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -14,7 +15,10 @@ struct CreateGroupToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "create_group")
-        #expect(toolDefinition.description == "Create a new group in the project navigator")
+        #expect(
+            toolDefinition.description
+                == "Create a new group in the project navigator"
+        )
     }
 
     @Test("Create group with missing project path")
@@ -228,5 +232,49 @@ struct CreateGroupToolTests {
         #expect(throws: MCPError.self) {
             try tool.execute(arguments: args)
         }
+    }
+
+    @Test("Create group in xcproj project")
+    func createGroupInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProject(name: "TestProject", at: projectPath)
+
+        let tool = CreateGroupTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "group_name": .string("NewGroup"),
+            "path": .string("NewGroup"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully created group 'NewGroup'"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        #expect(
+            XCProjTreeEditor.findGroup(named: "NewGroup", in: file.project.topLevelReferences)
+                != nil)
+    }
+
+    @Test("Create group under parent group in xcproj project")
+    func createGroupUnderParentInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProject(name: "TestProject", at: projectPath)
+
+        let tool = CreateGroupTool(pathUtility: PathUtility(basePath: tempDir.path))
+        _ = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "group_name": .string("Inner"),
+            "parent_group": .string("Tests"),
+        ])
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        #expect(
+            XCProjTreeEditor.findGroup(named: "Tests/Inner", in: file.project.topLevelReferences)
+                != nil)
     }
 }

@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -216,5 +217,75 @@ struct RemoveAppExtensionToolTests {
         // Verify second was removed
         xcodeproj = try XcodeProj(path: projectPath)
         #expect(!xcodeproj.pbxproj.nativeTargets.contains { $0.name == "Widget2" })
+    }
+
+    @Test("Remove widget extension from xcproj project")
+    func removeWidgetExtensionFromXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let pathUtility = PathUtility(basePath: tempDir.path)
+        _ = try AddAppExtensionTool(pathUtility: pathUtility).execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "extension_name": .string("MyWidget"),
+            "extension_type": .string("widget"),
+            "host_target_name": .string("TestApp"),
+            "bundle_identifier": .string("com.example.TestApp.MyWidget"),
+        ])
+
+        let tool = RemoveAppExtensionTool(pathUtility: pathUtility)
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "extension_name": .string("MyWidget"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully removed App Extension 'MyWidget'"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        #expect(file.project.targets.contains(where: { $0.name == "MyWidget" }) == false)
+
+        // Host no longer depends on it, the empty embed phase is cleaned up,
+        // and the product reference is gone
+        let host = file.project.targets.first(where: { $0.name == "TestApp" })
+        #expect(host?.commonProperties.dependencies.isEmpty == true)
+        let hasEmbedPhase = host?.commonProperties.buildPhases.contains { phase in
+            if case .copy = phase { return true }
+            return false
+        }
+        #expect(hasEmbedPhase == false)
+        var productFound = false
+        XCProjTreeEditor.forEachFileReference(in: file.project.topLevelReferences) {
+            fileReference in
+            if fileReference.path.stringRepresentation.hasSuffix("MyWidget.appex") {
+                productFound = true
+            }
+        }
+        #expect(productFound == false)
+    }
+
+    @Test("Remove app extension rejects non-extension target in xcproj project")
+    func removeAppExtensionRejectsNonExtensionInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let tool = RemoveAppExtensionTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "extension_name": .string("TestApp"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("is not an App Extension"))
     }
 }

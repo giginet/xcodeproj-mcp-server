@@ -5,9 +5,11 @@ import XcodeProj
 
 public struct ListSwiftPackagesTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
@@ -34,29 +36,29 @@ public struct ListSwiftPackagesTool: Sendable {
         }
 
         do {
-            // Resolve and validate the project path
-            let resolvedProjectPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedProjectPath)
-
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
-
-            guard let project = try xcodeproj.pbxproj.rootProject() else {
-                throw MCPError.internalError("Unable to access project root")
-            }
+            let (loadedProject, _) = try projectLoader.load(projectPath: projectPath)
 
             var packages: [String] = []
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                guard let project = try xcodeproj.pbxproj.rootProject() else {
+                    throw MCPError.internalError("Unable to access project root")
+                }
 
-            // List remote packages
-            for remotePackage in project.remotePackages {
-                let requirement = formatVersionRequirement(
-                    remotePackage.versionRequirement ?? .exact("unknown"))
-                let url = remotePackage.repositoryURL ?? "unknown"
-                packages.append("📦 \(url) (\(requirement))")
-            }
+                // List remote packages
+                for remotePackage in project.remotePackages {
+                    let requirement = formatVersionRequirement(
+                        remotePackage.versionRequirement ?? .exact("unknown"))
+                    let url = remotePackage.repositoryURL ?? "unknown"
+                    packages.append("📦 \(url) (\(requirement))")
+                }
 
-            // List local packages
-            for localPackage in project.localPackages {
-                packages.append("📁 \(localPackage.relativePath) (local)")
+                // List local packages
+                for localPackage in project.localPackages {
+                    packages.append("📁 \(localPackage.relativePath) (local)")
+                }
+            case .xcproj(let file):
+                packages = XCProjSupport.packageDescriptions(of: file.project)
             }
 
             if packages.isEmpty {

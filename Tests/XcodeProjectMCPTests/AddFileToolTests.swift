@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -14,7 +15,10 @@ struct AddFileToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "add_file")
-        #expect(toolDefinition.description == "Add a file to an Xcode project")
+        #expect(
+            toolDefinition.description
+                == "Add a file to an Xcode project"
+        )
     }
 
     @Test func testAddFileWithMissingProjectPath() throws {
@@ -317,5 +321,33 @@ struct AddFileToolTests {
         #expect(throws: MCPError.self) {
             try tool.execute(arguments: arguments)
         }
+    }
+
+    @Test("Add file to target in xcproj project")
+    func addFileToTargetInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+        try "print(1)".write(
+            to: URL(fileURLWithPath: tempDir.path).appendingPathComponent("main.swift"),
+            atomically: true, encoding: .utf8)
+
+        let tool = AddFileTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "file_path": .string("main.swift"),
+            "target_name": .string("TestApp"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully added file 'main.swift'"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        let files = XCProjSupport.files(inTarget: "TestApp", of: file.project)
+        #expect(files?.contains("main.swift") == true)
     }
 }

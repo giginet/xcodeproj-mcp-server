@@ -184,4 +184,21 @@ struct ListSwiftPackagesToolTests {
         #expect(message.contains("revision: abc123"))
         #expect(message.contains("📁 ../SharedUtilities (local)"))
     }
+
+    @Test("List packages from xcproj project")
+    func listPackagesFromXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithPackages(name: "TestProject", at: projectPath)
+
+        let tool = ListSwiftPackagesTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: ["project_path": .string(projectPath.string)])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("📦 https://github.com/example/package (from: 1.0.0)"))
+        #expect(message.contains("📁 ../LocalPackage (local)"))
+    }
 }

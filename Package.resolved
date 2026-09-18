@@ -1,5 +1,5 @@
 {
-  "originHash" : "7e41ded66b5ac4f540acef219352256dc2e486bbaff15c601fb230f7312c0646",
+  "originHash" : "786ad15e9df5b0db4148629549d261c1c239c9f342176e2b5dc8432e70af60c5",
   "pins" : [
     {
       "identity" : "aexml",
@@ -98,6 +98,15 @@
       "state" : {
         "revision" : "61e4ca4b81b9e09e2ec863b00c340eb13497dac6",
         "version" : "1.5.0"
+      }
+    },
+    {
+      "identity" : "xcode-project-format",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/xcode-project-format",
+      "state" : {
+        "revision" : "c132630aabf40f6d6c3f7bb004595d2e5a28ea42",
+        "version" : "0.1.0"
       }
     },
     {

@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -14,7 +15,10 @@ struct SetBuildSettingToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "set_build_setting")
-        #expect(toolDefinition.description == "Modify build settings for a target")
+        #expect(
+            toolDefinition.description
+                == "Modify build settings for a target"
+        )
     }
 
     @Test("Set build setting with missing parameters")
@@ -213,5 +217,59 @@ struct SetBuildSettingToolTests {
             return
         }
         #expect(message.contains("Configuration 'Production' not found"))
+    }
+
+    @Test("Set build setting for all configurations in xcproj project")
+    func setBuildSettingAllInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let tool = SetBuildSettingTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "target_name": .string("TestApp"),
+            "configuration": .string("all"),
+            "setting_name": .string("SWIFT_VERSION"),
+            "setting_value": .string("6.0"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully set 'SWIFT_VERSION'"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        let target = file.project.targets.first(where: { $0.name == "TestApp" })
+        #expect(target?.commonProperties.buildSettings["SWIFT_VERSION"] == .string("6.0"))
+    }
+
+    @Test("Set build setting for one configuration is rejected in xcproj project")
+    func setBuildSettingSingleConfigurationRejectedInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let tool = SetBuildSettingTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "target_name": .string("TestApp"),
+            "configuration": .string("Debug"),
+            "setting_name": .string("SWIFT_VERSION"),
+            "setting_value": .string("6.0"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("not supported"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        let target = file.project.targets.first(where: { $0.name == "TestApp" })
+        #expect(target?.commonProperties.buildSettings["SWIFT_VERSION"] == nil)
     }
 }

@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -14,7 +15,10 @@ struct AddBuildPhaseToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "add_build_phase")
-        #expect(toolDefinition.description == "Add custom build phases")
+        #expect(
+            toolDefinition.description
+                == "Add custom build phases"
+        )
     }
 
     @Test("Add build phase with missing parameters")
@@ -251,5 +255,77 @@ struct AddBuildPhaseToolTests {
             return
         }
         #expect(message.contains("not found"))
+    }
+
+    @Test("Add run script phase in xcproj project")
+    func addRunScriptPhaseInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let tool = AddBuildPhaseTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "target_name": .string("TestApp"),
+            "phase_name": .string("Lint"),
+            "phase_type": .string("run_script"),
+            "script": .string("echo lint"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully added run_script build phase 'Lint'"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        let target = file.project.targets.first(where: { $0.name == "TestApp" })
+        let scriptPhase = target?.commonProperties.buildPhases.compactMap {
+            phase -> XCSchema.ScriptBuildPhaseProperties? in
+            if case .script(let properties) = phase { return properties }
+            return nil
+        }.first
+        #expect(scriptPhase?.baseProperties.name == "Lint")
+        #expect(scriptPhase?.script == "echo lint")
+    }
+
+    @Test("Add copy files phase in xcproj project")
+    func addCopyFilesPhaseInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithFiles(
+            name: "TestProject", targetName: "TestApp",
+            fileNames: ["config.json"], at: projectPath)
+
+        let tool = AddBuildPhaseTool(pathUtility: PathUtility(basePath: tempDir.path))
+        _ = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "target_name": .string("TestApp"),
+            "phase_name": .string("Copy Configs"),
+            "phase_type": .string("copy_files"),
+            "destination": .string("resources"),
+            "files": .array([.string("config.json")]),
+        ])
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        let target = file.project.targets.first(where: { $0.name == "TestApp" })
+        let copyPhase = target?.commonProperties.buildPhases.compactMap {
+            phase -> XCSchema.CopyFilesBuildPhaseProperties? in
+            if case .copy(let properties) = phase { return properties }
+            return nil
+        }.first
+        #expect(copyPhase?.baseProperties.name == "Copy Configs")
+        #expect(copyPhase?.bundleBasePath == .resourcesDir)
+
+        // config.json gained a membership entry pointing at the new phase
+        var membershipCount = 0
+        XCProjTreeEditor.forEachFileReference(in: file.project.topLevelReferences) {
+            fileReference in
+            if fileReference.path.stringRepresentation.hasSuffix("config.json") {
+                membershipCount = fileReference.buildFiles.count
+            }
+        }
+        #expect(membershipCount == 2)
     }
 }

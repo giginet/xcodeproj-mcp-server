@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -14,7 +15,10 @@ struct DuplicateTargetToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "duplicate_target")
-        #expect(toolDefinition.description == "Duplicate an existing target")
+        #expect(
+            toolDefinition.description
+                == "Duplicate an existing target"
+        )
     }
 
     @Test("Duplicate target with missing parameters")
@@ -231,5 +235,45 @@ struct DuplicateTargetToolTests {
         let newTarget = xcodeproj.pbxproj.nativeTargets.first { $0.name == "AppCopy" }
         let hasDependency = newTarget?.dependencies.contains { $0.name == "Framework" } ?? false
         #expect(hasDependency == true)
+    }
+
+    @Test("Duplicate target in xcproj project")
+    func duplicateTargetInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithFiles(
+            name: "TestProject", targetName: "TestApp",
+            fileNames: ["main.swift"], at: projectPath)
+
+        let tool = DuplicateTargetTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "source_target": .string("TestApp"),
+            "new_target_name": .string("TestApp2"),
+            "new_bundle_identifier": .string("com.example.app2"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully duplicated target 'TestApp' as 'TestApp2'"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        let duplicate = file.project.targets.first(where: { $0.name == "TestApp2" })
+        #expect(duplicate != nil)
+        #expect(
+            duplicate?.commonProperties.buildSettings["PRODUCT_NAME"] == .string("TestApp2"))
+        #expect(
+            duplicate?.commonProperties.buildSettings["BUNDLE_IDENTIFIER"]
+                == .string("com.example.app2"))
+
+        // The duplicated target sees the same files as the original
+        #expect(
+            XCProjSupport.files(inTarget: "TestApp2", of: file.project)?.contains("main.swift")
+                == true)
+        #expect(
+            XCProjSupport.files(inTarget: "TestApp", of: file.project)?.contains("main.swift")
+                == true)
     }
 }

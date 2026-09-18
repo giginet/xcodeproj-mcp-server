@@ -60,4 +60,22 @@ struct ListTargetsToolTests {
             Issue.record("Expected text content")
         }
     }
+
+    @Test("List targets in both formats", arguments: ProjectFormat.allCases)
+    func listTargetsInBothFormats(format: ProjectFormat) throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestProjectFixture.createProjectWithTarget(
+            format: format, name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let tool = ListTargetsTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: ["project_path": .string(projectPath.string)])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("TestApp"))
+        #expect(message.contains("com.apple.product-type.application"))
+    }
 }

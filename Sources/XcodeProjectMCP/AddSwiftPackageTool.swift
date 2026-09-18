@@ -2,18 +2,22 @@ import Foundation
 import MCP
 import PathKit
 import XcodeProj
+import XcodeProjectFormat
 
 public struct AddSwiftPackageTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "add_swift_package",
-            description: "Add a Swift Package dependency to an Xcode project",
+            description:
+                "Add a Swift Package dependency to an Xcode project",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -71,61 +75,111 @@ public struct AddSwiftPackageTool: Sendable {
         }
 
         do {
-            // Resolve and validate the project path
-            let resolvedProjectPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedProjectPath)
+            let (loadedProject, projectURL) = try projectLoader.load(projectPath: projectPath)
 
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
-
-            // Check if package already exists
-            if let project = try xcodeproj.pbxproj.rootProject(),
-                project.remotePackages.contains(where: { $0.repositoryURL == packageURL })
-            {
-                return CallTool.Result(
-                    content: [
-                        .text("Swift Package '\(packageURL)' already exists in project")
-                    ]
-                )
-            }
-
-            // Create Swift Package reference
-            let packageRef = XCRemoteSwiftPackageReference(
-                repositoryURL: packageURL,
-                versionRequirement: parseRequirement(requirement)
-            )
-            xcodeproj.pbxproj.add(object: packageRef)
-
-            // Add to project's package references
-            if let project = try xcodeproj.pbxproj.rootProject() {
-                project.remotePackages.append(packageRef)
-            }
-
-            // If target name is specified, add package product to target
-            if let targetName = targetName {
-                guard
-                    let target = xcodeproj.pbxproj.nativeTargets.first(where: {
-                        $0.name == targetName
-                    })
-                else {
-                    throw MCPError.invalidParams("Target '\(targetName)' not found in project")
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                // Check if package already exists
+                if let project = try xcodeproj.pbxproj.rootProject(),
+                    project.remotePackages.contains(where: { $0.repositoryURL == packageURL })
+                {
+                    return CallTool.Result(
+                        content: [
+                            .text("Swift Package '\(packageURL)' already exists in project")
+                        ]
+                    )
                 }
 
-                // Create product dependency
-                let productDependency = XCSwiftPackageProductDependency(
-                    productName: productName ?? "Unknown",
-                    package: packageRef
+                // Create Swift Package reference
+                let packageRef = XCRemoteSwiftPackageReference(
+                    repositoryURL: packageURL,
+                    versionRequirement: parseRequirement(requirement)
                 )
-                xcodeproj.pbxproj.add(object: productDependency)
+                xcodeproj.pbxproj.add(object: packageRef)
 
-                // Initialize packageProductDependencies if nil
-                if target.packageProductDependencies == nil {
-                    target.packageProductDependencies = []
+                // Add to project's package references
+                if let project = try xcodeproj.pbxproj.rootProject() {
+                    project.remotePackages.append(packageRef)
                 }
-                target.packageProductDependencies?.append(productDependency)
-            }
 
-            // Save project
-            try xcodeproj.write(path: Path(projectURL.path))
+                // If target name is specified, add package product to target
+                if let targetName = targetName {
+                    guard
+                        let target = xcodeproj.pbxproj.nativeTargets.first(where: {
+                            $0.name == targetName
+                        })
+                    else {
+                        throw MCPError.invalidParams("Target '\(targetName)' not found in project")
+                    }
+
+                    // Create product dependency
+                    let productDependency = XCSwiftPackageProductDependency(
+                        productName: productName ?? "Unknown",
+                        package: packageRef
+                    )
+                    xcodeproj.pbxproj.add(object: productDependency)
+
+                    // Initialize packageProductDependencies if nil
+                    if target.packageProductDependencies == nil {
+                        target.packageProductDependencies = []
+                    }
+                    target.packageProductDependencies?.append(productDependency)
+                }
+
+                // Save project
+                try xcodeproj.write(path: Path(projectURL.path))
+            case .xcproj(var file):
+                let alreadyExists = file.project.packages.contains { package in
+                    if case .remote(let remote) = package.location {
+                        return remote.repositoryURL == packageURL
+                    }
+                    return false
+                }
+                if alreadyExists {
+                    return CallTool.Result(
+                        content: [
+                            .text("Swift Package '\(packageURL)' already exists in project")
+                        ]
+                    )
+                }
+
+                file.project.packages.append(
+                    XCSchema.SwiftPackage(
+                        location: .remote(
+                            XCSchema.RemoteSwiftPackage(
+                                repositoryURL: packageURL,
+                                versionConstraint: Self.parseConstraint(requirement))),
+                        traits: []))
+
+                if let targetName = targetName {
+                    guard file.project.targets.contains(where: { $0.name == targetName }) else {
+                        throw MCPError.invalidParams("Target '\(targetName)' not found in project")
+                    }
+                    // Product linkage lives on the target: a package product
+                    // member carrying the build-file mapping into the
+                    // frameworks phase (replaces the pbxproj
+                    // XCSwiftPackageProductDependency + PBXBuildFile pair).
+                    let packageName = Self.packageName(fromRepositoryURL: packageURL)
+                    XCProjSupport.modifyTarget(named: targetName, in: &file.project) {
+                        properties in
+                        XCProjSupport.ensureBuildPhase(kind: .frameworks, in: &properties)
+                        properties.packageProductTargetMembers.append(
+                            XCSchema.SwiftPackageProductTargetMember(
+                                packageProduct: XCSchema.SwiftPackageProductReference(
+                                    objectID: nil,
+                                    package: XCSchema.SwiftPackageName(
+                                        packageName: packageName),
+                                    productName: productName ?? "Unknown",
+                                    productType: .other),
+                                buildFile: XCSchema.TargetBuildFile(
+                                    objectID: nil,
+                                    buildPhase: .named(kind: .frameworks, name: nil),
+                                    properties: XCProjSupport.emptyBuildFileProperties())))
+                    }
+                }
+
+                try file.save()
+            }
 
             var message =
                 "Successfully added Swift Package '\(packageURL)' with requirement '\(requirement)'"
@@ -141,6 +195,45 @@ public struct AddSwiftPackageTool: Sendable {
         } catch {
             throw MCPError.internalError(
                 "Failed to add Swift Package to Xcode project: \(error.descriptiveMessage)")
+        }
+    }
+
+    /// The package identity Xcode derives from a repository URL: the last path
+    /// component without a trailing ".git".
+    static func packageName(fromRepositoryURL packageURL: String) -> String {
+        let lastComponent =
+            packageURL.split(separator: "/").last.map(String.init) ?? packageURL
+        if lastComponent.hasSuffix(".git") {
+            return String(lastComponent.dropLast(4))
+        }
+        return lastComponent
+    }
+
+    /// The xcproj counterpart of `parseRequirement`, accepting the same
+    /// requirement spellings.
+    static func parseConstraint(_ requirement: String) -> XCSchema.SwiftPackageVersionConstraint {
+        let trimmed = requirement.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("from:") {
+            return .upToNextMajorVersion(
+                String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines))
+        } else if trimmed.hasPrefix("upToNextMajor:") {
+            return .upToNextMajorVersion(
+                String(trimmed.dropFirst(14)).trimmingCharacters(in: .whitespacesAndNewlines))
+        } else if trimmed.hasPrefix("upToNextMinor:") {
+            return .upToNextMinorVersion(
+                String(trimmed.dropFirst(14)).trimmingCharacters(in: .whitespacesAndNewlines))
+        } else if trimmed.hasPrefix("branch:") {
+            return .branch(
+                String(trimmed.dropFirst(7)).trimmingCharacters(in: .whitespacesAndNewlines))
+        } else if trimmed.hasPrefix("revision:") {
+            return .revision(
+                String(trimmed.dropFirst(9)).trimmingCharacters(in: .whitespacesAndNewlines))
+        } else if trimmed.hasPrefix("exact:") {
+            return .version(
+                String(trimmed.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines))
+        } else {
+            // Default to exact version if just a version number
+            return .version(trimmed)
         }
     }
 

@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -14,7 +15,10 @@ struct AddDependencyToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "add_dependency")
-        #expect(toolDefinition.description == "Add dependency between targets")
+        #expect(
+            toolDefinition.description
+                == "Add dependency between targets"
+        )
     }
 
     @Test("Add dependency with missing parameters")
@@ -183,5 +187,55 @@ struct AddDependencyToolTests {
             return
         }
         #expect(message.contains("not found"))
+    }
+
+    @Test("Add dependency in xcproj project")
+    func addDependencyInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "App", at: projectPath)
+        _ = try AddTargetTool(pathUtility: PathUtility(basePath: tempDir.path)).execute(
+            arguments: [
+                "project_path": .string(projectPath.string),
+                "target_name": .string("Kit"),
+                "product_type": .string("framework"),
+                "bundle_identifier": .string("com.example.kit"),
+            ])
+
+        let tool = AddDependencyTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "target_name": .string("App"),
+            "dependency_name": .string("Kit"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully added dependency 'Kit'"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        let app = file.project.targets.first(where: { $0.name == "App" })
+        let hasDependency = app?.commonProperties.dependencies.contains { dependency in
+            if case .localTarget(let reference, _) = dependency {
+                return reference.targetName == "Kit"
+            }
+            return false
+        }
+        #expect(hasDependency == true)
+
+        // Adding it again reports the duplicate
+        let second = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "target_name": .string("App"),
+            "dependency_name": .string("Kit"),
+        ])
+        guard case let .text(secondMessage, _, _) = second.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(secondMessage.contains("already depends"))
     }
 }
