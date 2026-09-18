@@ -72,6 +72,26 @@ struct RemoveTargetToolTests {
         #expect(targetStillExists == false)
     }
 
+    @Test("Remove target from non-existent project reports the resolved path")
+    func removeTargetFromNonExistentProject() throws {
+        let tempDir = TemporaryDirectory.url
+
+        let tool = RemoveTargetTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let args: [String: Value] = [
+            "project_path": Value.string("Missing.xcodeproj"),
+            "target_name": Value.string("TestApp"),
+        ]
+
+        do {
+            _ = try tool.execute(arguments: args)
+            Issue.record("Expected an error for a non-existent project")
+        } catch let error as MCPError {
+            let message = error.localizedDescription
+            #expect(message.contains("Missing.xcodeproj"))
+            #expect(!message.contains("error 0"))
+        }
+    }
+
     @Test("Remove non-existent target")
     func removeNonExistentTarget() throws {
         let tempDir = TemporaryDirectory.url

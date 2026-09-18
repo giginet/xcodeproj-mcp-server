@@ -124,7 +124,7 @@ public struct AddDependencyTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to add dependency to Xcode project: \(error.localizedDescription)")
+                "Failed to add dependency to Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

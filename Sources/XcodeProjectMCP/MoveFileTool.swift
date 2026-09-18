@@ -134,7 +134,7 @@ public struct MoveFileTool: Sendable {
             }
         } catch {
             throw MCPError.internalError(
-                "Failed to move file in Xcode project: \(error.localizedDescription)")
+                "Failed to move file in Xcode project: \(error.descriptiveMessage)")
         }
     }
 

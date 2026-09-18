@@ -165,7 +165,7 @@ public struct AddFolderTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to add folder to Xcode project: \(error.localizedDescription)")
+                "Failed to add folder to Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

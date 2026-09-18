@@ -173,7 +173,7 @@ public struct AddBuildPhaseTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to add build phase to Xcode project: \(error.localizedDescription)")
+                "Failed to add build phase to Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

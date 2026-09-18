@@ -136,7 +136,7 @@ public struct RemoveTargetTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to remove target from Xcode project: \(error.localizedDescription)")
+                "Failed to remove target from Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

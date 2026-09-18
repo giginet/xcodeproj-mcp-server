@@ -221,7 +221,7 @@ public struct DuplicateTargetTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to duplicate target in Xcode project: \(error.localizedDescription)")
+                "Failed to duplicate target in Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

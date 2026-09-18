@@ -75,7 +75,7 @@ public struct ListGroupsTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to read Xcode project: \(error.localizedDescription)")
+                "Failed to read Xcode project: \(error.descriptiveMessage)")
         }
     }
 
