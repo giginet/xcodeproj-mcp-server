@@ -5,9 +5,11 @@ import XcodeProj
 
 public struct ListGroupsTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
@@ -35,29 +37,29 @@ public struct ListGroupsTool: Sendable {
         }
 
         do {
-            // Resolve and validate the path
-            let resolvedPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(filePath: resolvedPath)
-
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
-
-            // Get the root project and main group
-            guard let project = try xcodeproj.pbxproj.rootProject(),
-                let mainGroup = project.mainGroup
-            else {
-                throw MCPError.internalError("Main group not found in project")
-            }
+            let (loadedProject, _) = try projectLoader.load(projectPath: projectPath)
 
             var groupList: [String] = []
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                // Get the root project and main group
+                guard let project = try xcodeproj.pbxproj.rootProject(),
+                    let mainGroup = project.mainGroup
+                else {
+                    throw MCPError.internalError("Main group not found in project")
+                }
 
-            // Recursively traverse groups starting from main group
-            traverseGroup(mainGroup, path: "", groupList: &groupList)
+                // Recursively traverse groups starting from main group
+                traverseGroup(mainGroup, path: "", groupList: &groupList)
 
-            // Also include the products group if it exists and is not already included
-            if let productsGroup = project.productsGroup,
-                !groupList.contains(where: { $0.contains("Products") })
-            {
-                traverseGroup(productsGroup, path: "", groupList: &groupList)
+                // Also include the products group if it exists and is not already included
+                if let productsGroup = project.productsGroup,
+                    !groupList.contains(where: { $0.contains("Products") })
+                {
+                    traverseGroup(productsGroup, path: "", groupList: &groupList)
+                }
+            case .xcproj(let file):
+                groupList = XCProjSupport.groupPaths(of: file.project)
             }
 
             let result =

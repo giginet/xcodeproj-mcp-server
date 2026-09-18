@@ -14,7 +14,10 @@ struct AddDependencyToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "add_dependency")
-        #expect(toolDefinition.description == "Add dependency between targets")
+        #expect(
+            toolDefinition.description
+                == "Add dependency between targets (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test("Add dependency with missing parameters")

@@ -5,9 +5,11 @@ import XcodeProj
 
 public struct GetBuildSettingsTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
@@ -52,56 +54,79 @@ public struct GetBuildSettingsTool: Sendable {
         }
 
         do {
-            // Resolve and validate the path
-            let resolvedPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedPath)
+            let (loadedProject, _) = try projectLoader.load(projectPath: projectPath)
 
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
-
-            // Find the target
-            guard
-                let target = xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == targetName })
-            else {
-                throw MCPError.invalidParams("Target '\(targetName)' not found in project")
-            }
-
-            // Get the build configuration for the target
-            guard let configList = target.buildConfigurationList else {
-                throw MCPError.invalidParams(
-                    "Target '\(targetName)' has no build configuration list")
-            }
-
-            guard
-                let config = configList.buildConfigurations.first(where: {
-                    $0.name == configurationName
-                })
-            else {
-                throw MCPError.invalidParams(
-                    "Configuration '\(configurationName)' not found for target '\(targetName)'")
-            }
-
-            // Format build settings
             var settingsList: [String] = []
-            for (key, value) in config.buildSettings.sorted(by: { $0.key < $1.key }) {
-                let valueString: String
-                switch value {
-                case .string(let str):
-                    valueString = str
-                case .array(let arr):
-                    valueString = arr.joined(separator: " ")
+            var note: String?
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                // Find the target
+                guard
+                    let target = xcodeproj.pbxproj.nativeTargets.first(where: {
+                        $0.name == targetName
+                    })
+                else {
+                    throw MCPError.invalidParams("Target '\(targetName)' not found in project")
                 }
-                settingsList.append("  \(key) = \(valueString)")
+
+                // Get the build configuration for the target
+                guard let configList = target.buildConfigurationList else {
+                    throw MCPError.invalidParams(
+                        "Target '\(targetName)' has no build configuration list")
+                }
+
+                guard
+                    let config = configList.buildConfigurations.first(where: {
+                        $0.name == configurationName
+                    })
+                else {
+                    throw MCPError.invalidParams(
+                        "Configuration '\(configurationName)' not found for target '\(targetName)'")
+                }
+
+                // Format build settings
+                for (key, value) in config.buildSettings.sorted(by: { $0.key < $1.key }) {
+                    let valueString: String
+                    switch value {
+                    case .string(let str):
+                        valueString = str
+                    case .array(let arr):
+                        valueString = arr.joined(separator: " ")
+                    }
+                    settingsList.append("  \(key) = \(valueString)")
+                }
+            case .xcproj(let file):
+                guard
+                    let target = file.project.targets.first(where: { $0.name == targetName })
+                else {
+                    throw MCPError.invalidParams("Target '\(targetName)' not found in project")
+                }
+
+                guard
+                    let configurationNote = XCProjSupport.configurationNote(
+                        for: configurationName, target: target, in: file.project)
+                else {
+                    throw MCPError.invalidParams(
+                        "Configuration '\(configurationName)' not found for target '\(targetName)'")
+                }
+
+                settingsList = XCProjSupport.buildSettingLines(of: target)
+                note = configurationNote
             }
 
             let result =
                 settingsList.isEmpty
                 ? "No build settings found." : settingsList.joined(separator: "\n")
 
+            var message =
+                "Build settings for target '\(targetName)' (\(configurationName)):\n\(result)"
+            if let note {
+                message += "\n\(note)"
+            }
+
             return CallTool.Result(
                 content: [
-                    .text(
-                        "Build settings for target '\(targetName)' (\(configurationName)):\n\(result)"
-                    )
+                    .text(message)
                 ]
             )
         } catch {

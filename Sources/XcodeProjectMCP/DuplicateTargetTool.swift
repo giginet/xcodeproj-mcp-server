@@ -5,15 +5,18 @@ import XcodeProj
 
 public struct DuplicateTargetTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "duplicate_target",
-            description: "Duplicate an existing target",
+            description:
+                "Duplicate an existing target (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -57,6 +60,8 @@ public struct DuplicateTargetTool: Sendable {
         } else {
             newBundleIdentifier = nil
         }
+
+        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "duplicate_target")
 
         do {
             // Resolve and validate the project path

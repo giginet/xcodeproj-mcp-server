@@ -253,12 +253,34 @@ The MCP server now supports restricting file operations to a specific base direc
 
 This is especially useful when running the server in containers or other sandboxed environments.
 
+## Project format support
+
+Xcode 27.2 introduced a new JSON-based project format: `project.xcproj`, which replaces the legacy `project.pbxproj` inside the `.xcodeproj` bundle. This server supports both formats, using [tuist/xcodeproj](https://github.com/tuist/xcodeproj) for pbxproj and [apple/xcode-project-format](https://github.com/apple/xcode-project-format) for xcproj.
+
+- Tools always take the `.xcodeproj` bundle path; the format is detected automatically from the files inside the bundle (`project.xcproj` wins when both are present).
+- The format is always preserved on save. Projects are never converted between formats implicitly.
+- `create_xcodeproj` accepts an optional `format` parameter (`pbxproj`, the default, or `xcproj`).
+- Tools that do not support xcproj yet reject xcproj-format projects with a clear error, without modifying the project.
+
+| Tool | pbxproj | xcproj |
+|---|---|---|
+| `create_xcodeproj` | ✅ | ✅ |
+| `list_targets` | ✅ | ✅ |
+| `list_build_configurations` | ✅ | ✅ |
+| `list_files` | ✅ | ✅ |
+| `list_groups` | ✅ | ✅ |
+| `list_swift_packages` | ✅ | ✅ |
+| `get_build_settings` | ✅ | ✅ |
+| All other tools | ✅ | Not yet |
+
+Note: xcproj stores one flat build settings dictionary per target instead of per-configuration dictionaries, so `get_build_settings` reports the flat settings along with a note about the requested configuration.
+
 ## Available Tools
 
 ### Project Management
 
 - **`create_xcodeproj`** - Create a new Xcode project
-  - Parameters: `project_name`, `path`, `organization_name`, `bundle_identifier`
+  - Parameters: `project_name`, `path`, `organization_name`, `bundle_identifier`, `format` (optional: `pbxproj` (default) or `xcproj`)
 
 - **`list_targets`** - List all targets in a project
   - Parameters: `project_path`

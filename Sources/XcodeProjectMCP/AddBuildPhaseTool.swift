@@ -5,15 +5,18 @@ import XcodeProj
 
 public struct AddBuildPhaseTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "add_build_phase",
-            description: "Add custom build phases",
+            description:
+                "Add custom build phases (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -67,6 +70,8 @@ public struct AddBuildPhaseTool: Sendable {
             throw MCPError.invalidParams(
                 "project_path, target_name, phase_name, and phase_type are required")
         }
+
+        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "add_build_phase")
 
         do {
             // Resolve and validate the project path

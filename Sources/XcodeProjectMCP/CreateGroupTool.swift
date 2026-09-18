@@ -5,15 +5,18 @@ import XcodeProj
 
 public struct CreateGroupTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "create_group",
-            description: "Create a new group in the project navigator",
+            description:
+                "Create a new group in the project navigator (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -63,6 +66,8 @@ public struct CreateGroupTool: Sendable {
         } else {
             groupPath = nil
         }
+
+        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "create_group")
 
         do {
             // Resolve and validate the project path

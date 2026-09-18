@@ -5,16 +5,18 @@ import XcodeProj
 
 public struct RemoveAppExtensionTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "remove_app_extension",
             description:
-                "Remove an App Extension target from the project and its embedding from the host app",
+                "Remove an App Extension target from the project and its embedding from the host app (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -39,6 +41,8 @@ public struct RemoveAppExtensionTool: Sendable {
         else {
             throw MCPError.invalidParams("project_path and extension_name are required")
         }
+
+        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "remove_app_extension")
 
         do {
             // Resolve and validate the project path

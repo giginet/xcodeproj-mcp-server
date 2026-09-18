@@ -5,9 +5,11 @@ import XcodeProj
 
 public struct ListTargetsTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
@@ -34,17 +36,19 @@ public struct ListTargetsTool: Sendable {
         }
 
         do {
-            // Resolve and validate the path
-            let resolvedPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedPath)
-
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
-            let targets = xcodeproj.pbxproj.nativeTargets
+            let (loadedProject, projectURL) = try projectLoader.load(projectPath: projectPath)
 
             var targetList: [String] = []
-            for target in targets {
-                let targetInfo = "- \(target.name) (\(target.productType?.rawValue ?? "unknown"))"
-                targetList.append(targetInfo)
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                for target in xcodeproj.pbxproj.nativeTargets {
+                    targetList.append(
+                        "- \(target.name) (\(target.productType?.rawValue ?? "unknown"))")
+                }
+            case .xcproj(let file):
+                for summary in XCProjSupport.targetSummaries(of: file.project) {
+                    targetList.append("- \(summary.name) (\(summary.productType))")
+                }
             }
 
             let result =

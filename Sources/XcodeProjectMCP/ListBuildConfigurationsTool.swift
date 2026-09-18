@@ -5,9 +5,11 @@ import XcodeProj
 
 public struct ListBuildConfigurationsTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
@@ -34,17 +36,18 @@ public struct ListBuildConfigurationsTool: Sendable {
         }
 
         do {
-            // Resolve and validate the path
-            let resolvedPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedPath)
-
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
-            let buildConfigurations = xcodeproj.pbxproj.buildConfigurations
+            let (loadedProject, projectURL) = try projectLoader.load(projectPath: projectPath)
 
             var configList: [String] = []
-            for config in buildConfigurations {
-                let configInfo = "- \(config.name)"
-                configList.append(configInfo)
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                for config in xcodeproj.pbxproj.buildConfigurations {
+                    configList.append("- \(config.name)")
+                }
+            case .xcproj(let file):
+                for name in XCProjSupport.configurationNames(of: file.project) {
+                    configList.append("- \(name)")
+                }
             }
 
             let result =

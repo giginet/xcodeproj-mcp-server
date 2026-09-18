@@ -14,7 +14,10 @@ struct AddSwiftPackageToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "add_swift_package")
-        #expect(toolDefinition.description == "Add a Swift Package dependency to an Xcode project")
+        #expect(
+            toolDefinition.description
+                == "Add a Swift Package dependency to an Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test("Add package with missing parameters")

@@ -14,7 +14,10 @@ struct RemoveTargetToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "remove_target")
-        #expect(toolDefinition.description == "Remove an existing target")
+        #expect(
+            toolDefinition.description
+                == "Remove an existing target (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test("Remove target with missing project path")

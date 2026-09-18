@@ -15,7 +15,9 @@ struct RemoveSwiftPackageToolTests {
 
         #expect(toolDefinition.name == "remove_swift_package")
         #expect(
-            toolDefinition.description == "Remove a Swift Package dependency from an Xcode project")
+            toolDefinition.description
+                == "Remove a Swift Package dependency from an Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test("Remove package with missing parameters")

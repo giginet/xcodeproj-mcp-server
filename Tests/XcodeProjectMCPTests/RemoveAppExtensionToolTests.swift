@@ -16,7 +16,7 @@ struct RemoveAppExtensionToolTests {
         #expect(toolDefinition.name == "remove_app_extension")
         #expect(
             toolDefinition.description
-                == "Remove an App Extension target from the project and its embedding from the host app"
+                == "Remove an App Extension target from the project and its embedding from the host app (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
         )
     }
 

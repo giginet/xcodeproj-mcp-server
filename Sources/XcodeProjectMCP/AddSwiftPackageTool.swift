@@ -5,15 +5,18 @@ import XcodeProj
 
 public struct AddSwiftPackageTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "add_swift_package",
-            description: "Add a Swift Package dependency to an Xcode project",
+            description:
+                "Add a Swift Package dependency to an Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -69,6 +72,8 @@ public struct AddSwiftPackageTool: Sendable {
         } else {
             productName = nil
         }
+
+        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "add_swift_package")
 
         do {
             // Resolve and validate the project path

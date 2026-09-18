@@ -5,15 +5,18 @@ import XcodeProj
 
 public struct RemoveSwiftPackageTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "remove_swift_package",
-            description: "Remove a Swift Package dependency from an Xcode project",
+            description:
+                "Remove a Swift Package dependency from an Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -50,6 +53,8 @@ public struct RemoveSwiftPackageTool: Sendable {
         } else {
             removeFromTargets = true
         }
+
+        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "remove_swift_package")
 
         do {
             // Resolve and validate the project path

@@ -14,7 +14,10 @@ struct DuplicateTargetToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "duplicate_target")
-        #expect(toolDefinition.description == "Duplicate an existing target")
+        #expect(
+            toolDefinition.description
+                == "Duplicate an existing target (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test("Duplicate target with missing parameters")

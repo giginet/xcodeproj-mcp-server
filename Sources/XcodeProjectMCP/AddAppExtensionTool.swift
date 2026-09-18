@@ -86,16 +86,18 @@ public enum ExtensionType: String, CaseIterable, Sendable {
 
 public struct AddAppExtensionTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "add_app_extension",
             description:
-                "Add an App Extension target to the project and embed it in a host app. Supports Widget, Push Notification, Share, and other extension types.",
+                "Add an App Extension target to the project and embed it in a host app. Supports Widget, Push Notification, Share, and other extension types. (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -175,6 +177,8 @@ public struct AddAppExtensionTool: Sendable {
             throw MCPError.invalidParams("Invalid extension type: \(extensionTypeString)")
         }
         let productType = extensionType.productType
+
+        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "add_app_extension")
 
         do {
             // Resolve and validate the project path

@@ -237,4 +237,23 @@ struct ListGroupsToolTests {
             Issue.record("Expected text result")
         }
     }
+
+    @Test("List nested groups in both formats", arguments: ProjectFormat.allCases)
+    func listNestedGroupsInBothFormats(format: ProjectFormat) throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestProjectFixture.createProjectWithNestedGroups(
+            format: format, name: "TestProject", at: projectPath)
+
+        let tool = ListGroupsTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: ["project_path": .string(projectPath.string)])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("- TopLevel"))
+        #expect(message.contains("- TopLevel/Nested"))
+        #expect(message.contains("- TopLevel/Nested/DeeplyNested"))
+    }
 }

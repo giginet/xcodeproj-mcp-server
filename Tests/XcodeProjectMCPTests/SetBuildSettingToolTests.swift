@@ -14,7 +14,10 @@ struct SetBuildSettingToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "set_build_setting")
-        #expect(toolDefinition.description == "Modify build settings for a target")
+        #expect(
+            toolDefinition.description
+                == "Modify build settings for a target (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test("Set build setting with missing parameters")

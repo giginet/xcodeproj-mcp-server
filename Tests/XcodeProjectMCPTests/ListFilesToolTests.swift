@@ -137,4 +137,41 @@ struct ListFilesToolTests {
             Issue.record("Expected text content")
         }
     }
+
+    @Test("List files from xcproj project")
+    func listFilesFromXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithFiles(
+            name: "TestProject", targetName: "TestApp",
+            fileNames: ["main.swift", "AppDelegate.swift"], at: projectPath)
+
+        let tool = ListFilesTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "target_name": .string("TestApp"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("main.swift"))
+        #expect(message.contains("AppDelegate.swift"))
+    }
+
+    @Test("List files reports missing target in xcproj project")
+    func listFilesMissingTargetInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProject(name: "TestProject", at: projectPath)
+
+        let tool = ListFilesTool(pathUtility: PathUtility(basePath: tempDir.path))
+        #expect(throws: MCPError.self) {
+            try tool.execute(arguments: [
+                "project_path": .string(projectPath.string),
+                "target_name": .string("Missing"),
+            ])
+        }
+    }
 }

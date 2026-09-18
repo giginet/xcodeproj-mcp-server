@@ -5,15 +5,18 @@ import XcodeProj
 
 public struct AddFrameworkTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "add_framework",
-            description: "Add framework dependencies",
+            description:
+                "Add framework dependencies (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -61,6 +64,8 @@ public struct AddFrameworkTool: Sendable {
         } else {
             embed = false
         }
+
+        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "add_framework")
 
         do {
             // Resolve and validate the project path

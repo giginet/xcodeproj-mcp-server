@@ -121,4 +121,42 @@ struct GetBuildSettingsToolTests {
             Issue.record("Expected text content")
         }
     }
+
+    @Test("Get build settings from xcproj project")
+    func getBuildSettingsFromXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let tool = GetBuildSettingsTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "target_name": .string("TestApp"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("PRODUCT_NAME = TestApp"))
+        #expect(message.contains("flat build settings"))
+    }
+
+    @Test("Get build settings rejects unknown configuration in xcproj project")
+    func getBuildSettingsUnknownConfigurationInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let tool = GetBuildSettingsTool(pathUtility: PathUtility(basePath: tempDir.path))
+        #expect(throws: MCPError.self) {
+            try tool.execute(arguments: [
+                "project_path": .string(projectPath.string),
+                "target_name": .string("TestApp"),
+                "configuration": .string("Staging"),
+            ])
+        }
+    }
 }

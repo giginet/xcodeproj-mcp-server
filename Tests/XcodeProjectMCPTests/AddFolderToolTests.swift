@@ -22,7 +22,9 @@ struct AddFolderToolTests {
 
         #expect(tool.tool().name == "add_synchronized_folder")
         #expect(
-            tool.tool().description == "Add a synchronized folder reference to an Xcode project")
+            tool.tool().description
+                == "Add a synchronized folder reference to an Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
 
         let schema = tool.tool().inputSchema
         if case let .object(schemaDict) = schema {

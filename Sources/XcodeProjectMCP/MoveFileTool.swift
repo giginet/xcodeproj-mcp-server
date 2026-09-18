@@ -5,15 +5,18 @@ import XcodeProj
 
 public struct MoveFileTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "move_file",
-            description: "Move or rename a file within the project",
+            description:
+                "Move or rename a file within the project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -57,6 +60,8 @@ public struct MoveFileTool: Sendable {
         } else {
             moveOnDisk = false
         }
+
+        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "move_file")
 
         do {
             // Resolve and validate the project path

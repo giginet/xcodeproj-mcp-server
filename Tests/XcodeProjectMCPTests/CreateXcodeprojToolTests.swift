@@ -69,3 +69,37 @@ func createProjectWithBundleIdentifier() throws {
 
     #expect(result.isError != true)
 }
+
+@Test("Create xcproj-format project")
+func createXCProjFormatProject() throws {
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
+        UUID().uuidString)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let tool = CreateXcodeprojTool(pathUtility: PathUtility(basePath: tempDir.path))
+    let result = try tool.execute(arguments: [
+        "project_name": .string("XCProjApp"),
+        "path": .string("."),
+        "organization_name": .string("Example Org"),
+        "bundle_identifier": .string("com.example"),
+        "format": .string("xcproj"),
+    ])
+
+    guard case let .text(message, _, _) = result.content.first else {
+        Issue.record("Expected text result")
+        return
+    }
+    #expect(message.contains("Successfully created"))
+
+    let bundleURL = tempDir.appendingPathComponent("XCProjApp.xcodeproj")
+    #expect(
+        FileManager.default.fileExists(
+            atPath: bundleURL.appendingPathComponent("project.xcproj").path))
+    #expect(
+        !FileManager.default.fileExists(
+            atPath: bundleURL.appendingPathComponent("project.pbxproj").path))
+
+    let loaded = try XCProjFile.load(bundleURL: bundleURL)
+    #expect(loaded.project.targets.first?.name == "XCProjApp")
+}

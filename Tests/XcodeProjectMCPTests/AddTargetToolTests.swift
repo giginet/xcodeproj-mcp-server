@@ -14,7 +14,10 @@ struct AddTargetToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "add_target")
-        #expect(toolDefinition.description == "Create a new target")
+        #expect(
+            toolDefinition.description
+                == "Create a new target (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test("Add target with missing parameters")

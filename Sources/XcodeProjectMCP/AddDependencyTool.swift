@@ -5,15 +5,18 @@ import XcodeProj
 
 public struct AddDependencyTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "add_dependency",
-            description: "Add dependency between targets",
+            description:
+                "Add dependency between targets (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -47,6 +50,8 @@ public struct AddDependencyTool: Sendable {
             throw MCPError.invalidParams(
                 "project_path, target_name, and dependency_name are required")
         }
+
+        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "add_dependency")
 
         do {
             // Resolve and validate the project path

@@ -16,7 +16,7 @@ struct AddAppExtensionToolTests {
         #expect(toolDefinition.name == "add_app_extension")
         #expect(
             toolDefinition.description
-                == "Add an App Extension target to the project and embed it in a host app. Supports Widget, Push Notification, Share, and other extension types."
+                == "Add an App Extension target to the project and embed it in a host app. Supports Widget, Push Notification, Share, and other extension types. (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
         )
     }
 

@@ -35,6 +35,13 @@ public struct CreateXcodeprojTool: Sendable {
                         "type": .string("string"),
                         "description": .string("Bundle identifier prefix"),
                     ]),
+                    "format": .object([
+                        "type": .string("string"),
+                        "enum": .array([.string("pbxproj"), .string("xcproj")]),
+                        "description": .string(
+                            "Project file format: 'pbxproj' (default, legacy format readable by all Xcode versions) or 'xcproj' (JSON format, requires Xcode 27.2+)"
+                        ),
+                    ]),
                 ]),
                 "required": .array([.string("project_name"), .string("path")]),
             ])
@@ -62,10 +69,40 @@ public struct CreateXcodeprojTool: Sendable {
             bundleIdentifier = "com.example"
         }
 
+        let format: ProjectFormat
+        if case let .string(formatString) = arguments["format"] {
+            guard let parsedFormat = ProjectFormat(rawValue: formatString) else {
+                throw MCPError.invalidParams(
+                    "format must be one of: "
+                        + ProjectFormat.allCases.map(\.rawValue).joined(separator: ", "))
+            }
+            format = parsedFormat
+        } else {
+            format = .pbxproj
+        }
+
         do {
             // Resolve and validate the path
             let resolvedPath = try pathUtility.resolvePath(from: pathString)
             let projectPath = Path(resolvedPath) + "\(projectName).xcodeproj"
+
+            if format == .xcproj {
+                let project = try XCProjSupport.makeNewProject(
+                    name: projectName,
+                    organizationName: organizationName,
+                    bundleIdentifier: bundleIdentifier
+                )
+                let bundleURL = URL(fileURLWithPath: projectPath.string)
+                try FileManager.default.createDirectory(
+                    at: bundleURL, withIntermediateDirectories: true)
+                try XCProjFile(project: project, bundleURL: bundleURL).save()
+
+                return CallTool.Result(
+                    content: [
+                        .text("Successfully created Xcode project at: \(projectPath.string)")
+                    ]
+                )
+            }
 
             // Create the .pbxproj file using XcodeProj
             let pbxproj = PBXProj()

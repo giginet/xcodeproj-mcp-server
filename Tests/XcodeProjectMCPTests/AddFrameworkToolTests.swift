@@ -14,7 +14,10 @@ struct AddFrameworkToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "add_framework")
-        #expect(toolDefinition.description == "Add framework dependencies")
+        #expect(
+            toolDefinition.description
+                == "Add framework dependencies (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test("Add framework with missing parameters")

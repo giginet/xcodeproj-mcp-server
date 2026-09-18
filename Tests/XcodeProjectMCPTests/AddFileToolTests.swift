@@ -14,7 +14,10 @@ struct AddFileToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "add_file")
-        #expect(toolDefinition.description == "Add a file to an Xcode project")
+        #expect(
+            toolDefinition.description
+                == "Add a file to an Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test func testAddFileWithMissingProjectPath() throws {

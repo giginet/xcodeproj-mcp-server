@@ -14,7 +14,10 @@ struct CreateGroupToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "create_group")
-        #expect(toolDefinition.description == "Create a new group in the project navigator")
+        #expect(
+            toolDefinition.description
+                == "Create a new group in the project navigator (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test("Create group with missing project path")

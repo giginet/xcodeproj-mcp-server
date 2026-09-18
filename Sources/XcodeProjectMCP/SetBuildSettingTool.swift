@@ -5,15 +5,18 @@ import XcodeProj
 
 public struct SetBuildSettingTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "set_build_setting",
-            description: "Modify build settings for a target",
+            description:
+                "Modify build settings for a target (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -58,6 +61,8 @@ public struct SetBuildSettingTool: Sendable {
                 "project_path, target_name, configuration, setting_name, and setting_value are required"
             )
         }
+
+        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "set_build_setting")
 
         do {
             // Resolve and validate the project path

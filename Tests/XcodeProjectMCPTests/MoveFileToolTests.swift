@@ -14,7 +14,10 @@ struct MoveFileToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "move_file")
-        #expect(toolDefinition.description == "Move or rename a file within the project")
+        #expect(
+            toolDefinition.description
+                == "Move or rename a file within the project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test("Move file with missing project path")

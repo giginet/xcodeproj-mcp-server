@@ -5,15 +5,18 @@ import XcodeProj
 
 public struct AddFolderTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "add_synchronized_folder",
-            description: "Add a synchronized folder reference to an Xcode project",
+            description:
+                "Add a synchronized folder reference to an Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -65,6 +68,9 @@ public struct AddFolderTool: Sendable {
         } else {
             targetName = nil
         }
+
+        try projectLoader.requirePBXProj(
+            projectPath: projectPath, toolName: "add_synchronized_folder")
 
         do {
             // Resolve and validate the project path

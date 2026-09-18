@@ -9,10 +9,31 @@ This project provides an MCP server that enables interaction with Xcode projects
 ## Architecture
 
 - **Language**: Swift
-- **Platform**: macOS 13+
+- **Platform**: macOS 14+
 - **Dependencies**:
   - ModelContextProtocol (MCP Swift SDK)
-  - XcodeProj (Xcode project manipulation)
+  - XcodeProj (legacy pbxproj-format project manipulation)
+  - XcodeProjectFormat (JSON-based xcproj-format projects, Xcode 27.2+)
+
+### Dual project format support
+
+`.xcodeproj` bundles contain either the legacy `project.pbxproj` or, since Xcode
+27.2, the JSON-based `project.xcproj`. The infrastructure lives in
+`Sources/XcodeProjectMCP/ProjectFormat/`:
+
+- `ProjectFormat.detect(atProjectBundle:)` detects the format from the bundle
+  contents (`project.xcproj` wins when both exist).
+- `ProjectLoader.load(projectPath:)` returns a `LoadedProject` enum
+  (`.pbxproj(XcodeProj)` / `.xcproj(XCProjFile)`); tools `switch` over it.
+- `XCProjFile` wraps a mutable `XCSchema.Project` value; mutate it (via helpers
+  taking `inout XCSchema.Project`) and call `save()`, which only ever writes
+  `project.xcproj` — the format is always preserved, never converted.
+- All direct `XCSchema` access belongs in `XCProjSupport` (and `XCProjFile`) so
+  churn in the pre-1.0 apple/xcode-project-format API stays localized.
+- **Rule**: every new or modified tool must either handle both formats or call
+  `projectLoader.requirePBXProj(projectPath:toolName:)` as its first statement
+  after argument parsing (before the `do` block), so xcproj projects get a
+  clear error instead of a crash or corruption.
 
 ## Package Structure
 
@@ -124,5 +145,6 @@ The server responds to MCP tool calls. Example of creating a new Xcode project:
 - XcodeProj library handles the low-level .xcodeproj file manipulation
 - Error handling uses custom ToolError enum for consistent error reporting
 - **Testing**: All tests are written using swift-testing framework instead of XCTest for modern Swift testing capabilities
+- **Test fixtures**: `TestProjectHelper` builds pbxproj fixtures, `TestXCProjHelper` builds xcproj fixtures, and the `TestProjectFixture` facade dispatches on `ProjectFormat` for parameterized tests (`@Test(arguments: ProjectFormat.allCases)`). Tools supporting both formats should be tested against both.
 - **Development Rule**: Always run `swift test` after implementing new features to verify tests pass
 - Execute `swift format -r -i .` to format the codebase before committing changes

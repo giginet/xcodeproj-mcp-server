@@ -5,15 +5,18 @@ import XcodeProj
 
 public struct AddTargetTool: Sendable {
     private let pathUtility: PathUtility
+    private let projectLoader: ProjectLoader
 
     public init(pathUtility: PathUtility) {
         self.pathUtility = pathUtility
+        self.projectLoader = ProjectLoader(pathUtility: pathUtility)
     }
 
     public func tool() -> Tool {
         Tool(
             name: "add_target",
-            description: "Create a new target",
+            description:
+                "Create a new target (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -144,6 +147,8 @@ public struct AddTargetTool: Sendable {
         default:
             throw MCPError.invalidParams("Invalid product type: \(productTypeString)")
         }
+
+        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "add_target")
 
         do {
             // Resolve and validate the project path

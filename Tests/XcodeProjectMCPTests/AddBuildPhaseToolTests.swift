@@ -14,7 +14,10 @@ struct AddBuildPhaseToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "add_build_phase")
-        #expect(toolDefinition.description == "Add custom build phases")
+        #expect(
+            toolDefinition.description
+                == "Add custom build phases (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test("Add build phase with missing parameters")

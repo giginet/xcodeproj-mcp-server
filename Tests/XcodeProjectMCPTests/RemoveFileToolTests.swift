@@ -14,7 +14,10 @@ struct RemoveFileToolTests {
         let toolDefinition = tool.tool()
 
         #expect(toolDefinition.name == "remove_file")
-        #expect(toolDefinition.description == "Remove a file from the Xcode project")
+        #expect(
+            toolDefinition.description
+                == "Remove a file from the Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+        )
     }
 
     @Test("Remove file with missing project path")
