@@ -15,7 +15,7 @@ public struct RemoveFileTool: Sendable {
         Tool(
             name: "remove_file",
             description:
-                "Remove a file from the Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
+                "Remove a file from the Xcode project",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -56,17 +56,11 @@ public struct RemoveFileTool: Sendable {
             removeFromDisk = false
         }
 
-        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "remove_file")
-
         do {
-            // Resolve and validate the project path
-            let resolvedProjectPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedProjectPath)
+            let (loadedProject, projectURL) = try projectLoader.load(projectPath: projectPath)
 
             // Resolve and validate the file path
             let resolvedFilePath = try pathUtility.resolvePath(from: filePath)
-
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
 
             let fileName = URL(fileURLWithPath: resolvedFilePath).lastPathComponent
             // Use relative path from project for comparison
@@ -75,81 +69,34 @@ public struct RemoveFileTool: Sendable {
             var removedFromTargets: [String] = []
             var fileRemoved = false
 
-            // Find and remove file references from build phases
-            for target in xcodeproj.pbxproj.nativeTargets {
-                // Check sources build phase
-                if let sourcesBuildPhase = target.buildPhases.first(where: {
-                    $0 is PBXSourcesBuildPhase
-                }) as? PBXSourcesBuildPhase {
-                    if let fileIndex = sourcesBuildPhase.files?.firstIndex(where: { buildFile in
-                        if let fileRef = buildFile.file as? PBXFileReference {
-                            return fileRef.path == relativePath || fileRef.path == filePath
-                                || fileRef.name == fileName || fileRef.path == fileName
-                        }
-                        return false
-                    }) {
-                        sourcesBuildPhase.files?.remove(at: fileIndex)
-                        removedFromTargets.append(target.name)
-                        fileRemoved = true
-                    }
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                try removeFromPBXProj(
+                    xcodeproj: xcodeproj, projectURL: projectURL,
+                    filePath: filePath, relativePath: relativePath, fileName: fileName,
+                    removedFromTargets: &removedFromTargets, fileRemoved: &fileRemoved)
+            case .xcproj(var file):
+                // Membership entries live on the file reference, so they are
+                // removed together with it; recover the target names first for
+                // the result message.
+                let removed = XCProjTreeEditor.removeFirstFileReference(
+                    in: &file.project.topLevelReferences
+                ) { fileReference in
+                    let storedPath = fileReference.path.stringRepresentation
+                    let storedName =
+                        storedPath.split(separator: "/").last.map(String.init) ?? storedPath
+                    return storedPath == relativePath || storedPath == filePath
+                        || storedName == fileName
                 }
-
-                // Check resources build phase
-                if let resourcesBuildPhase = target.buildPhases.first(where: {
-                    $0 is PBXResourcesBuildPhase
-                }) as? PBXResourcesBuildPhase {
-                    if let fileIndex = resourcesBuildPhase.files?.firstIndex(where: { buildFile in
-                        if let fileRef = buildFile.file as? PBXFileReference {
-                            return fileRef.path == relativePath || fileRef.path == filePath
-                                || fileRef.name == fileName || fileRef.path == fileName
-                        }
-                        return false
-                    }) {
-                        resourcesBuildPhase.files?.remove(at: fileIndex)
-                        if !removedFromTargets.contains(target.name) {
-                            removedFromTargets.append(target.name)
-                        }
-                        fileRemoved = true
-                    }
-                }
-            }
-
-            // Remove from project groups
-            func removeFromGroup(_ group: PBXGroup) -> Bool {
-                let children = group.children
-                if let index = children.firstIndex(where: { element in
-                    if let fileRef = element as? PBXFileReference {
-                        return fileRef.path == relativePath || fileRef.path == filePath
-                            || fileRef.name == fileName || fileRef.path == fileName
-                    }
-                    return false
-                }) {
-                    group.children.remove(at: index)
-                    return true
-                }
-
-                // Recursively check child groups
-                for child in children {
-                    if let childGroup = child as? PBXGroup {
-                        if removeFromGroup(childGroup) {
-                            return true
-                        }
-                    }
-                }
-                return false
-            }
-
-            if let project = xcodeproj.pbxproj.rootObject,
-                let mainGroup = project.mainGroup
-            {
-                if removeFromGroup(mainGroup) {
+                if let removed {
+                    removedFromTargets = XCProjSupport.targetNames(
+                        referencedBy: removed, in: file.project)
                     fileRemoved = true
+                    try file.save()
                 }
             }
 
             if fileRemoved {
-                try xcodeproj.write(path: Path(projectURL.path))
-
                 // Optionally remove from disk
                 if removeFromDisk {
                     let fileURL = URL(fileURLWithPath: resolvedFilePath)
@@ -175,6 +122,87 @@ public struct RemoveFileTool: Sendable {
         } catch {
             throw MCPError.internalError(
                 "Failed to remove file from Xcode project: \(error.localizedDescription)")
+        }
+    }
+
+    private func removeFromPBXProj(
+        xcodeproj: XcodeProj, projectURL: URL, filePath: String, relativePath: String,
+        fileName: String, removedFromTargets: inout [String], fileRemoved: inout Bool
+    ) throws {
+        // Find and remove file references from build phases
+        for target in xcodeproj.pbxproj.nativeTargets {
+            // Check sources build phase
+            if let sourcesBuildPhase = target.buildPhases.first(where: {
+                $0 is PBXSourcesBuildPhase
+            }) as? PBXSourcesBuildPhase {
+                if let fileIndex = sourcesBuildPhase.files?.firstIndex(where: { buildFile in
+                    if let fileRef = buildFile.file as? PBXFileReference {
+                        return fileRef.path == relativePath || fileRef.path == filePath
+                            || fileRef.name == fileName || fileRef.path == fileName
+                    }
+                    return false
+                }) {
+                    sourcesBuildPhase.files?.remove(at: fileIndex)
+                    removedFromTargets.append(target.name)
+                    fileRemoved = true
+                }
+            }
+
+            // Check resources build phase
+            if let resourcesBuildPhase = target.buildPhases.first(where: {
+                $0 is PBXResourcesBuildPhase
+            }) as? PBXResourcesBuildPhase {
+                if let fileIndex = resourcesBuildPhase.files?.firstIndex(where: { buildFile in
+                    if let fileRef = buildFile.file as? PBXFileReference {
+                        return fileRef.path == relativePath || fileRef.path == filePath
+                            || fileRef.name == fileName || fileRef.path == fileName
+                    }
+                    return false
+                }) {
+                    resourcesBuildPhase.files?.remove(at: fileIndex)
+                    if !removedFromTargets.contains(target.name) {
+                        removedFromTargets.append(target.name)
+                    }
+                    fileRemoved = true
+                }
+            }
+        }
+
+        // Remove from project groups
+        func removeFromGroup(_ group: PBXGroup) -> Bool {
+            let children = group.children
+            if let index = children.firstIndex(where: { element in
+                if let fileRef = element as? PBXFileReference {
+                    return fileRef.path == relativePath || fileRef.path == filePath
+                        || fileRef.name == fileName || fileRef.path == fileName
+                }
+                return false
+            }) {
+                group.children.remove(at: index)
+                return true
+            }
+
+            // Recursively check child groups
+            for child in children {
+                if let childGroup = child as? PBXGroup {
+                    if removeFromGroup(childGroup) {
+                        return true
+                    }
+                }
+            }
+            return false
+        }
+
+        if let project = xcodeproj.pbxproj.rootObject,
+            let mainGroup = project.mainGroup
+        {
+            if removeFromGroup(mainGroup) {
+                fileRemoved = true
+            }
+        }
+
+        if fileRemoved {
+            try xcodeproj.write(path: Path(projectURL.path))
         }
     }
 }

@@ -2,6 +2,7 @@ import Foundation
 import MCP
 import PathKit
 import XcodeProj
+import XcodeProjectFormat
 
 public struct AddFileTool: Sendable {
     private let pathUtility: PathUtility
@@ -16,7 +17,7 @@ public struct AddFileTool: Sendable {
         Tool(
             name: "add_file",
             description:
-                "Add a file to an Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
+                "Add a file to an Xcode project",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -68,123 +69,25 @@ public struct AddFileTool: Sendable {
             targetName = nil
         }
 
-        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "add_file")
-
         do {
-            // Resolve and validate the project path
-            let resolvedProjectPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedProjectPath)
+            let (loadedProject, projectURL) = try projectLoader.load(projectPath: projectPath)
 
             // Resolve and validate the file path
             let resolvedFilePath = try pathUtility.resolvePath(from: filePath)
-
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
-
-            // Find the group to add the file to
-            let targetGroup: PBXGroup
-            if let groupName = groupName {
-                // Find group by name, path, or hierarchical path (e.g. "Parent/Child")
-                do {
-                    targetGroup = try GroupFinder.findGroup(
-                        named: groupName, in: xcodeproj.pbxproj)
-                } catch {
-                    throw MCPError.invalidParams("Group '\(groupName)' not found in project")
-                }
-            } else {
-                // Use main group
-                guard let project = try xcodeproj.pbxproj.rootProject(),
-                    let mainGroup = project.mainGroup
-                else {
-                    throw MCPError.internalError("Main group not found in project")
-                }
-                targetGroup = mainGroup
-            }
-
-            // Create file reference
             let fileName = URL(fileURLWithPath: resolvedFilePath).lastPathComponent
-            // A PBXFileReference with sourceTree .group resolves its `path` relative to
-            // its parent group's own resolved directory, which chains up to the
-            // directory containing the .xcodeproj -- not the MCP server's sandbox
-            // basePath. Those two directories only coincide when the .xcodeproj sits
-            // directly at basePath; for a nested project (e.g. <repo>/apps/ios/Foo.xcodeproj
-            // with basePath == <repo>) resolving relative to basePath produces a path
-            // that gets the project's own subdirectory prefix applied twice at build time.
-            let projectDirPath = Path(projectURL.deletingLastPathComponent().path)
-            let targetGroupPath = try? targetGroup.fullPath(sourceRoot: projectDirPath)
-            let relativePath =
-                PathUtility.relativePath(
-                    from: (targetGroupPath ?? projectDirPath).string, to: resolvedFilePath)
-                ?? resolvedFilePath
-            let fileReference = PBXFileReference(
-                sourceTree: .group,
-                name: fileName,
-                path: relativePath
-            )
-            xcodeproj.pbxproj.add(object: fileReference)
 
-            // Add file to group
-            targetGroup.children.append(fileReference)
-            fileReference.parent = targetGroup
-
-            // Add file to target if specified
-            if let targetName = targetName {
-                guard
-                    let target = xcodeproj.pbxproj.nativeTargets.first(where: {
-                        $0.name == targetName
-                    })
-                else {
-                    throw MCPError.invalidParams("Target '\(targetName)' not found in project")
-                }
-
-                // Create build file
-                let buildFile = PBXBuildFile(file: fileReference)
-                xcodeproj.pbxproj.add(object: buildFile)
-
-                // Add to appropriate build phase based on file extension
-                let fileExtension = URL(fileURLWithPath: resolvedFilePath).pathExtension
-                    .lowercased()
-
-                if ["swift", "m", "mm", "c", "cpp", "cc", "cxx"].contains(fileExtension) {
-                    // Source file - add to compile sources
-                    if let sourcesBuildPhase = target.buildPhases.first(where: {
-                        $0 is PBXSourcesBuildPhase
-                    }) as? PBXSourcesBuildPhase {
-                        sourcesBuildPhase.files?.append(buildFile)
-                    } else {
-                        // Create sources build phase if it doesn't exist
-                        let sourcesBuildPhase = PBXSourcesBuildPhase(files: [buildFile])
-                        xcodeproj.pbxproj.add(object: sourcesBuildPhase)
-                        target.buildPhases.append(sourcesBuildPhase)
-                    }
-                } else if ["h", "hpp", "hxx"].contains(fileExtension) {
-                    // Header file - add to headers build phase
-                    if let headersBuildPhase = target.buildPhases.first(where: {
-                        $0 is PBXHeadersBuildPhase
-                    }) as? PBXHeadersBuildPhase {
-                        headersBuildPhase.files?.append(buildFile)
-                    } else {
-                        // Create headers build phase if it doesn't exist
-                        let headersBuildPhase = PBXHeadersBuildPhase(files: [buildFile])
-                        xcodeproj.pbxproj.add(object: headersBuildPhase)
-                        target.buildPhases.append(headersBuildPhase)
-                    }
-                } else {
-                    // Resource file - add to copy bundle resources
-                    if let resourcesBuildPhase = target.buildPhases.first(where: {
-                        $0 is PBXResourcesBuildPhase
-                    }) as? PBXResourcesBuildPhase {
-                        resourcesBuildPhase.files?.append(buildFile)
-                    } else {
-                        // Create resources build phase if it doesn't exist
-                        let resourcesBuildPhase = PBXResourcesBuildPhase(files: [buildFile])
-                        xcodeproj.pbxproj.add(object: resourcesBuildPhase)
-                        target.buildPhases.append(resourcesBuildPhase)
-                    }
-                }
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                try addToPBXProj(
+                    xcodeproj: xcodeproj, projectURL: projectURL,
+                    resolvedFilePath: resolvedFilePath, fileName: fileName,
+                    groupName: groupName, targetName: targetName)
+            case .xcproj(var file):
+                try addToXCProj(
+                    file: &file, projectURL: projectURL,
+                    resolvedFilePath: resolvedFilePath, fileName: fileName,
+                    groupName: groupName, targetName: targetName)
             }
-
-            // Write project
-            try xcodeproj.write(path: Path(projectURL.path))
 
             let targetInfo = targetName != nil ? " to target '\(targetName!)'" : ""
             let groupInfo = groupName != nil ? " in group '\(groupName!)'" : ""
@@ -213,5 +116,193 @@ public struct AddFileTool: Sendable {
             throw MCPError.internalError(
                 "Failed to add file to Xcode project: \(error.localizedDescription)")
         }
+    }
+
+    /// Build phase kind for a file, based on its extension.
+    static func buildPhaseKind(forFileExtension fileExtension: String)
+        -> XCSchema.BuildPhase.Kind
+    {
+        if ["swift", "m", "mm", "c", "cpp", "cc", "cxx"].contains(fileExtension) {
+            return .sources
+        } else if ["h", "hpp", "hxx"].contains(fileExtension) {
+            return .headers
+        }
+        return .resources
+    }
+
+    private func addToXCProj(
+        file: inout XCProjFile, projectURL: URL, resolvedFilePath: String, fileName: String,
+        groupName: String?, targetName: String?
+    ) throws {
+        // Find the group to add the file to
+        let groupIndexPath: [Int]?
+        if let groupName = groupName {
+            guard
+                let indexPath = XCProjTreeEditor.findGroup(
+                    named: groupName, in: file.project.topLevelReferences)
+            else {
+                throw MCPError.invalidParams("Group '\(groupName)' not found in project")
+            }
+            groupIndexPath = indexPath
+        } else {
+            groupIndexPath = nil
+        }
+
+        // A group-based FilePath resolves relative to the owning group's own
+        // directory, which chains up to the directory containing the .xcodeproj
+        // (mirrors the pbxproj arm's fullPath math).
+        let projectDirPath = projectURL.deletingLastPathComponent().path
+        var groupDirectory = projectDirPath
+        if let groupIndexPath {
+            let components = XCProjTreeEditor.directoryComponents(
+                toGroupAt: groupIndexPath, in: file.project.topLevelReferences)
+            for component in components {
+                groupDirectory = (groupDirectory as NSString).appendingPathComponent(component)
+            }
+        }
+        let relativePath =
+            PathUtility.relativePath(from: groupDirectory, to: resolvedFilePath)
+            ?? resolvedFilePath
+
+        // Map the file into the target's build phase, inversely to pbxproj:
+        // the membership entry lives on the file reference itself.
+        var buildFiles: [XCSchema.ProjectBuildFile] = []
+        if let targetName = targetName {
+            guard file.project.targets.contains(where: { $0.name == targetName }) else {
+                throw MCPError.invalidParams("Target '\(targetName)' not found in project")
+            }
+            let fileExtension = URL(fileURLWithPath: resolvedFilePath).pathExtension.lowercased()
+            let kind = Self.buildPhaseKind(forFileExtension: fileExtension)
+            XCProjSupport.modifyTarget(named: targetName, in: &file.project) { properties in
+                XCProjSupport.ensureBuildPhase(kind: kind, in: &properties)
+            }
+            buildFiles.append(XCProjSupport.makeBuildFile(targetName: targetName, kind: kind))
+        }
+
+        let fileReference = XCSchema.FileReference(
+            objectID: nil,
+            path: try XCSchema.FilePath(base: .group, path: relativePath),
+            explicitFileType: nil,
+            expectedSignature: nil,
+            textEncoding: nil,
+            lineEnding: nil,
+            includeInIndex: nil,
+            buildFiles: buildFiles
+        )
+        XCProjTreeEditor.append(
+            .fileReference(fileReference), toGroupAt: groupIndexPath,
+            in: &file.project.topLevelReferences)
+
+        try file.save()
+    }
+
+    private func addToPBXProj(
+        xcodeproj: XcodeProj, projectURL: URL, resolvedFilePath: String, fileName: String,
+        groupName: String?, targetName: String?
+    ) throws {
+        // Find the group to add the file to
+        let targetGroup: PBXGroup
+        if let groupName = groupName {
+            // Find group by name, path, or hierarchical path (e.g. "Parent/Child")
+            do {
+                targetGroup = try GroupFinder.findGroup(
+                    named: groupName, in: xcodeproj.pbxproj)
+            } catch {
+                throw MCPError.invalidParams("Group '\(groupName)' not found in project")
+            }
+        } else {
+            // Use main group
+            guard let project = try xcodeproj.pbxproj.rootProject(),
+                let mainGroup = project.mainGroup
+            else {
+                throw MCPError.internalError("Main group not found in project")
+            }
+            targetGroup = mainGroup
+        }
+
+        // Create file reference
+        // A PBXFileReference with sourceTree .group resolves its `path` relative to
+        // its parent group's own resolved directory, which chains up to the
+        // directory containing the .xcodeproj -- not the MCP server's sandbox
+        // basePath. Those two directories only coincide when the .xcodeproj sits
+        // directly at basePath; for a nested project (e.g. <repo>/apps/ios/Foo.xcodeproj
+        // with basePath == <repo>) resolving relative to basePath produces a path
+        // that gets the project's own subdirectory prefix applied twice at build time.
+        let projectDirPath = Path(projectURL.deletingLastPathComponent().path)
+        let targetGroupPath = try? targetGroup.fullPath(sourceRoot: projectDirPath)
+        let relativePath =
+            PathUtility.relativePath(
+                from: (targetGroupPath ?? projectDirPath).string, to: resolvedFilePath)
+            ?? resolvedFilePath
+        let fileReference = PBXFileReference(
+            sourceTree: .group,
+            name: fileName,
+            path: relativePath
+        )
+        xcodeproj.pbxproj.add(object: fileReference)
+
+        // Add file to group
+        targetGroup.children.append(fileReference)
+        fileReference.parent = targetGroup
+
+        // Add file to target if specified
+        if let targetName = targetName {
+            guard
+                let target = xcodeproj.pbxproj.nativeTargets.first(where: {
+                    $0.name == targetName
+                })
+            else {
+                throw MCPError.invalidParams("Target '\(targetName)' not found in project")
+            }
+
+            // Create build file
+            let buildFile = PBXBuildFile(file: fileReference)
+            xcodeproj.pbxproj.add(object: buildFile)
+
+            // Add to appropriate build phase based on file extension
+            let fileExtension = URL(fileURLWithPath: resolvedFilePath).pathExtension
+                .lowercased()
+
+            if ["swift", "m", "mm", "c", "cpp", "cc", "cxx"].contains(fileExtension) {
+                // Source file - add to compile sources
+                if let sourcesBuildPhase = target.buildPhases.first(where: {
+                    $0 is PBXSourcesBuildPhase
+                }) as? PBXSourcesBuildPhase {
+                    sourcesBuildPhase.files?.append(buildFile)
+                } else {
+                    // Create sources build phase if it doesn't exist
+                    let sourcesBuildPhase = PBXSourcesBuildPhase(files: [buildFile])
+                    xcodeproj.pbxproj.add(object: sourcesBuildPhase)
+                    target.buildPhases.append(sourcesBuildPhase)
+                }
+            } else if ["h", "hpp", "hxx"].contains(fileExtension) {
+                // Header file - add to headers build phase
+                if let headersBuildPhase = target.buildPhases.first(where: {
+                    $0 is PBXHeadersBuildPhase
+                }) as? PBXHeadersBuildPhase {
+                    headersBuildPhase.files?.append(buildFile)
+                } else {
+                    // Create headers build phase if it doesn't exist
+                    let headersBuildPhase = PBXHeadersBuildPhase(files: [buildFile])
+                    xcodeproj.pbxproj.add(object: headersBuildPhase)
+                    target.buildPhases.append(headersBuildPhase)
+                }
+            } else {
+                // Resource file - add to copy bundle resources
+                if let resourcesBuildPhase = target.buildPhases.first(where: {
+                    $0 is PBXResourcesBuildPhase
+                }) as? PBXResourcesBuildPhase {
+                    resourcesBuildPhase.files?.append(buildFile)
+                } else {
+                    // Create resources build phase if it doesn't exist
+                    let resourcesBuildPhase = PBXResourcesBuildPhase(files: [buildFile])
+                    xcodeproj.pbxproj.add(object: resourcesBuildPhase)
+                    target.buildPhases.append(resourcesBuildPhase)
+                }
+            }
+        }
+
+        // Write project
+        try xcodeproj.write(path: Path(projectURL.path))
     }
 }

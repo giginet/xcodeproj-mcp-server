@@ -18,18 +18,6 @@ public enum LoadedProject {
 
 /// Resolves a `project_path` argument, detects the project format, and loads it.
 public struct ProjectLoader: Sendable {
-    /// Tools that currently accept xcproj-format projects. Used in the error
-    /// message shown when an unsupported tool is invoked on an xcproj project.
-    static let xcprojSupportedToolNames = [
-        "create_xcodeproj",
-        "list_targets",
-        "list_build_configurations",
-        "list_files",
-        "get_build_settings",
-        "list_groups",
-        "list_swift_packages",
-    ]
-
     private let pathUtility: PathUtility
 
     public init(pathUtility: PathUtility) {
@@ -48,9 +36,11 @@ public struct ProjectLoader: Sendable {
         }
     }
 
-    /// Guard for tools that do not support the xcproj format yet: throws a clear
-    /// error for xcproj projects without ever opening the project file, so an
-    /// unsupported project can never be modified.
+    /// Guard for tools that do not support the xcproj format (none of the
+    /// built-in tools any more, but every new tool must either handle both
+    /// formats or call this first): throws a clear error for xcproj projects
+    /// without ever opening the project file, so an unsupported project can
+    /// never be modified.
     @discardableResult
     public func requirePBXProj(projectPath: String, toolName: String) throws -> URL {
         let resolvedPath: String
@@ -76,7 +66,6 @@ extension MCPError {
         .invalidParams(
             "Tool '\(toolName)' does not yet support the JSON project format (project.xcproj) "
                 + "introduced in Xcode 27.2, which this project uses. The project file was not "
-                + "modified. Tools that currently support xcproj: "
-                + ProjectLoader.xcprojSupportedToolNames.joined(separator: ", "))
+                + "modified.")
     }
 }

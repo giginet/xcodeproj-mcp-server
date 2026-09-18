@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -16,7 +17,7 @@ struct RemoveSwiftPackageToolTests {
         #expect(toolDefinition.name == "remove_swift_package")
         #expect(
             toolDefinition.description
-                == "Remove a Swift Package dependency from an Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+                == "Remove a Swift Package dependency from an Xcode project"
         )
     }
 
@@ -243,5 +244,39 @@ struct RemoveSwiftPackageToolTests {
         #expect(
             updatedProject?.remotePackages.first?.repositoryURL
                 == "https://github.com/apple/swift-collections.git")
+    }
+
+    @Test("Remove Swift Package from xcproj project")
+    func removeSwiftPackageFromXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let pathUtility = PathUtility(basePath: tempDir.path)
+        _ = try AddSwiftPackageTool(pathUtility: pathUtility).execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "package_url": .string("https://github.com/example/package.git"),
+            "requirement": .string("from: 1.2.0"),
+            "target_name": .string("TestApp"),
+            "product_name": .string("ExamplePackage"),
+        ])
+
+        let tool = RemoveSwiftPackageTool(pathUtility: pathUtility)
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "package_url": .string("https://github.com/example/package.git"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully removed Swift Package"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        #expect(file.project.packages.isEmpty)
+        let target = file.project.targets.first(where: { $0.name == "TestApp" })
+        #expect(target?.commonProperties.packageProductTargetMembers.isEmpty == true)
     }
 }

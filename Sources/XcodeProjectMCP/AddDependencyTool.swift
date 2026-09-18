@@ -2,6 +2,7 @@ import Foundation
 import MCP
 import PathKit
 import XcodeProj
+import XcodeProjectFormat
 
 public struct AddDependencyTool: Sendable {
     private let pathUtility: PathUtility
@@ -16,7 +17,7 @@ public struct AddDependencyTool: Sendable {
         Tool(
             name: "add_dependency",
             description:
-                "Add dependency between targets (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
+                "Add dependency between targets",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -51,74 +52,114 @@ public struct AddDependencyTool: Sendable {
                 "project_path, target_name, and dependency_name are required")
         }
 
-        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "add_dependency")
-
         do {
-            // Resolve and validate the project path
-            let resolvedProjectPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedProjectPath)
+            let (loadedProject, projectURL) = try projectLoader.load(projectPath: projectPath)
 
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                // Find the target
+                guard
+                    let target = xcodeproj.pbxproj.nativeTargets.first(where: {
+                        $0.name == targetName
+                    })
+                else {
+                    return CallTool.Result(
+                        content: [
+                            .text("Target '\(targetName)' not found in project")
+                        ]
+                    )
+                }
 
-            // Find the target
-            guard
-                let target = xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == targetName })
-            else {
-                return CallTool.Result(
-                    content: [
-                        .text("Target '\(targetName)' not found in project")
-                    ]
+                // Find the dependency target
+                guard
+                    let dependencyTarget = xcodeproj.pbxproj.nativeTargets.first(where: {
+                        $0.name == dependencyName
+                    })
+                else {
+                    return CallTool.Result(
+                        content: [
+                            .text("Dependency target '\(dependencyName)' not found in project")
+                        ]
+                    )
+                }
+
+                // Check if dependency already exists
+                let dependencyExists = target.dependencies.contains { dependency in
+                    dependency.target == dependencyTarget
+                }
+
+                if dependencyExists {
+                    return CallTool.Result(
+                        content: [
+                            .text("Target '\(targetName)' already depends on '\(dependencyName)'")
+                        ]
+                    )
+                }
+
+                // Create container item proxy
+                let containerItemProxy = PBXContainerItemProxy(
+                    containerPortal: .project(xcodeproj.pbxproj.rootObject!),
+                    remoteGlobalID: .object(dependencyTarget),
+                    proxyType: .nativeTarget,
+                    remoteInfo: dependencyName
                 )
-            }
+                xcodeproj.pbxproj.add(object: containerItemProxy)
 
-            // Find the dependency target
-            guard
-                let dependencyTarget = xcodeproj.pbxproj.nativeTargets.first(where: {
-                    $0.name == dependencyName
-                })
-            else {
-                return CallTool.Result(
-                    content: [
-                        .text("Dependency target '\(dependencyName)' not found in project")
-                    ]
+                // Create target dependency
+                let targetDependency = PBXTargetDependency(
+                    name: dependencyName,
+                    target: dependencyTarget,
+                    targetProxy: containerItemProxy
                 )
+                xcodeproj.pbxproj.add(object: targetDependency)
+
+                // Add dependency to target
+                target.dependencies.append(targetDependency)
+
+                // Save project
+                try xcodeproj.write(path: Path(projectURL.path))
+            case .xcproj(var file):
+                guard let target = file.project.targets.first(where: { $0.name == targetName })
+                else {
+                    return CallTool.Result(
+                        content: [
+                            .text("Target '\(targetName)' not found in project")
+                        ]
+                    )
+                }
+                guard file.project.targets.contains(where: { $0.name == dependencyName }) else {
+                    return CallTool.Result(
+                        content: [
+                            .text("Dependency target '\(dependencyName)' not found in project")
+                        ]
+                    )
+                }
+
+                let dependencyExists = target.commonProperties.dependencies.contains {
+                    dependency in
+                    if case .localTarget(let reference, _) = dependency {
+                        return reference.targetName == dependencyName
+                    }
+                    return false
+                }
+                if dependencyExists {
+                    return CallTool.Result(
+                        content: [
+                            .text("Target '\(targetName)' already depends on '\(dependencyName)'")
+                        ]
+                    )
+                }
+
+                // No container item proxy exists in xcproj: a dependency is
+                // just a reference to the local target by name.
+                XCProjSupport.modifyTarget(named: targetName, in: &file.project) { properties in
+                    properties.dependencies.append(
+                        .localTarget(
+                            XCSchema.LocalTargetReference(targetName: dependencyName), []))
+                }
+
+                try file.save()
             }
-
-            // Check if dependency already exists
-            let dependencyExists = target.dependencies.contains { dependency in
-                dependency.target == dependencyTarget
-            }
-
-            if dependencyExists {
-                return CallTool.Result(
-                    content: [
-                        .text("Target '\(targetName)' already depends on '\(dependencyName)'")
-                    ]
-                )
-            }
-
-            // Create container item proxy
-            let containerItemProxy = PBXContainerItemProxy(
-                containerPortal: .project(xcodeproj.pbxproj.rootObject!),
-                remoteGlobalID: .object(dependencyTarget),
-                proxyType: .nativeTarget,
-                remoteInfo: dependencyName
-            )
-            xcodeproj.pbxproj.add(object: containerItemProxy)
-
-            // Create target dependency
-            let targetDependency = PBXTargetDependency(
-                name: dependencyName,
-                target: dependencyTarget,
-                targetProxy: containerItemProxy
-            )
-            xcodeproj.pbxproj.add(object: targetDependency)
-
-            // Add dependency to target
-            target.dependencies.append(targetDependency)
-
-            // Save project
-            try xcodeproj.write(path: Path(projectURL.path))
 
             return CallTool.Result(
                 content: [

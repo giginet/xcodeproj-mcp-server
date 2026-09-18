@@ -28,8 +28,17 @@ This project provides an MCP server that enables interaction with Xcode projects
 - `XCProjFile` wraps a mutable `XCSchema.Project` value; mutate it (via helpers
   taking `inout XCSchema.Project`) and call `save()`, which only ever writes
   `project.xcproj` — the format is always preserved, never converted.
-- All direct `XCSchema` access belongs in `XCProjSupport` (and `XCProjFile`) so
-  churn in the pre-1.0 apple/xcode-project-format API stays localized.
+- All direct `XCSchema` access belongs in `XCProjSupport`, `XCProjTreeEditor`,
+  and `XCProjFile` so churn in the pre-1.0 apple/xcode-project-format API stays
+  localized. `XCProjTreeEditor` holds the index-path based find/rewrite helpers
+  for the value-typed groups-and-files tree.
+- All 23 tools handle both formats. Key semantic mappings: file-to-target
+  membership lives on `FileReference.buildFiles` (inverse of pbxproj);
+  dependencies are plain `LocalTargetReference`s (no container item proxy);
+  package-product linkage is `packageProductTargetMembers`; synchronized
+  folders carry their own `targets` set. Build settings are one flat dictionary
+  per target, so `set_build_setting` only accepts `configuration: "all"` for
+  xcproj projects.
 - **Rule**: every new or modified tool must either handle both formats or call
   `projectLoader.requirePBXProj(projectPath:toolName:)` as its first statement
   after argument parsing (before the `do` block), so xcproj projects get a

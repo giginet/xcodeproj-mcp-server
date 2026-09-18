@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -16,7 +17,7 @@ struct MoveFileToolTests {
         #expect(toolDefinition.name == "move_file")
         #expect(
             toolDefinition.description
-                == "Move or rename a file within the project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+                == "Move or rename a file within the project"
         )
     }
 
@@ -261,5 +262,32 @@ struct MoveFileToolTests {
             return
         }
         #expect(message.contains("File not found"))
+    }
+
+    @Test("Move file in xcproj project")
+    func moveFileInXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithFiles(
+            name: "TestProject", targetName: "TestApp",
+            fileNames: ["main.swift"], at: projectPath)
+
+        let tool = MoveFileTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "old_path": .string("main.swift"),
+            "new_path": .string("Sources/renamed.swift"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully moved main.swift"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        let files = XCProjSupport.files(inTarget: "TestApp", of: file.project)
+        #expect(files?.contains("renamed.swift") == true)
+        #expect(files?.contains("main.swift") == false)
     }
 }

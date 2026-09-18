@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -16,7 +17,7 @@ struct AddSwiftPackageToolTests {
         #expect(toolDefinition.name == "add_swift_package")
         #expect(
             toolDefinition.description
-                == "Add a Swift Package dependency to an Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+                == "Add a Swift Package dependency to an Xcode project"
         )
     }
 
@@ -232,5 +233,41 @@ struct AddSwiftPackageToolTests {
         #expect(throws: MCPError.self) {
             try tool.execute(arguments: args)
         }
+    }
+
+    @Test("Add Swift Package to xcproj project")
+    func addSwiftPackageToXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let tool = AddSwiftPackageTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "package_url": .string("https://github.com/example/package.git"),
+            "requirement": .string("from: 1.2.0"),
+            "target_name": .string("TestApp"),
+            "product_name": .string("ExamplePackage"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully added Swift Package"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        let package = file.project.packages.compactMap { package -> XCSchema.RemoteSwiftPackage? in
+            if case .remote(let remote) = package.location { return remote }
+            return nil
+        }.first
+        #expect(package?.repositoryURL == "https://github.com/example/package.git")
+        #expect(package?.versionConstraint == .upToNextMajorVersion("1.2.0"))
+
+        let target = file.project.targets.first(where: { $0.name == "TestApp" })
+        let member = target?.commonProperties.packageProductTargetMembers.first
+        #expect(member?.packageProduct.productName == "ExamplePackage")
+        #expect(member?.packageProduct.package?.packageName == "package")
     }
 }

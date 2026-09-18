@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -16,7 +17,7 @@ struct AddAppExtensionToolTests {
         #expect(toolDefinition.name == "add_app_extension")
         #expect(
             toolDefinition.description
-                == "Add an App Extension target to the project and embed it in a host app. Supports Widget, Push Notification, Share, and other extension types. (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+                == "Add an App Extension target to the project and embed it in a host app. Supports Widget, Push Notification, Share, and other extension types."
         )
     }
 
@@ -363,5 +364,65 @@ struct AddAppExtensionToolTests {
         }
         #expect(extensionTarget != nil)
         #expect(extensionTarget?.productType == .intentsServiceExtension)
+    }
+
+    @Test("Add widget extension to xcproj project")
+    func addWidgetExtensionToXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+
+        let tool = AddAppExtensionTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "extension_name": .string("MyWidget"),
+            "extension_type": .string("widget"),
+            "host_target_name": .string("TestApp"),
+            "bundle_identifier": .string("com.example.TestApp.MyWidget"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully created App Extension 'MyWidget'"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+
+        // Extension target exists with the right product type
+        let extensionTarget = file.project.targets.first(where: { $0.name == "MyWidget" })
+        #expect(
+            extensionTarget?.commonProperties.productTypeID?.rawValue
+                == "com.apple.product-type.app-extension")
+
+        // Host depends on the extension and gained an embed copy phase
+        let host = file.project.targets.first(where: { $0.name == "TestApp" })
+        let hasDependency = host?.commonProperties.dependencies.contains { dependency in
+            if case .localTarget(let reference, _) = dependency {
+                return reference.targetName == "MyWidget"
+            }
+            return false
+        }
+        #expect(hasDependency == true)
+        let hasEmbedPhase = host?.commonProperties.buildPhases.contains { phase in
+            if case .copy(let properties) = phase {
+                return properties.bundleBasePath == .plugInsDir
+            }
+            return false
+        }
+        #expect(hasEmbedPhase == true)
+
+        // The product reference carries the embed membership into the host
+        var embedMembershipFound = false
+        XCProjTreeEditor.forEachFileReference(in: file.project.topLevelReferences) {
+            fileReference in
+            if fileReference.path.stringRepresentation.hasSuffix("MyWidget.appex"),
+                !fileReference.buildFiles.isEmpty
+            {
+                embedMembershipFound = true
+            }
+        }
+        #expect(embedMembershipFound)
     }
 }

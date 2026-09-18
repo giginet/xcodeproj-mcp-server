@@ -260,20 +260,7 @@ Xcode 27.2 introduced a new JSON-based project format: `project.xcproj`, which r
 - Tools always take the `.xcodeproj` bundle path; the format is detected automatically from the files inside the bundle (`project.xcproj` wins when both are present).
 - The format is always preserved on save. Projects are never converted between formats implicitly.
 - `create_xcodeproj` accepts an optional `format` parameter (`pbxproj`, the default, or `xcproj`).
-- Tools that do not support xcproj yet reject xcproj-format projects with a clear error, without modifying the project.
-
-| Tool | pbxproj | xcproj |
-|---|---|---|
-| `create_xcodeproj` | ✅ | ✅ |
-| `list_targets` | ✅ | ✅ |
-| `list_build_configurations` | ✅ | ✅ |
-| `list_files` | ✅ | ✅ |
-| `list_groups` | ✅ | ✅ |
-| `list_swift_packages` | ✅ | ✅ |
-| `get_build_settings` | ✅ | ✅ |
-| All other tools | ✅ | Not yet |
-
-Note: xcproj stores one flat build settings dictionary per target instead of per-configuration dictionaries, so `get_build_settings` reports the flat settings along with a note about the requested configuration.
+- **All tools support both formats**, with one caveat: xcproj stores one flat build settings dictionary per target instead of per-configuration dictionaries. `get_build_settings` therefore reports the flat settings with a note about the requested configuration, and `set_build_setting` on an xcproj project requires `configuration: "all"` (a configuration-specific write is rejected with an explanation, since it is not representable inline in xcproj).
 
 ## Available Tools
 

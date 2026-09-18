@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -16,7 +17,7 @@ struct RemoveFileToolTests {
         #expect(toolDefinition.name == "remove_file")
         #expect(
             toolDefinition.description
-                == "Remove a file from the Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+                == "Remove a file from the Xcode project"
         )
     }
 
@@ -160,5 +161,32 @@ struct RemoveFileToolTests {
             return
         }
         #expect(message.contains("File not found"))
+    }
+
+    @Test("Remove file from xcproj project")
+    func removeFileFromXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithFiles(
+            name: "TestProject", targetName: "TestApp",
+            fileNames: ["main.swift", "AppDelegate.swift"], at: projectPath)
+
+        let tool = RemoveFileTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "file_path": .string("main.swift"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully removed main.swift"))
+        #expect(message.contains("TestApp"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        let files = XCProjSupport.files(inTarget: "TestApp", of: file.project)
+        #expect(files?.contains("main.swift") == false)
+        #expect(files?.contains("AppDelegate.swift") == true)
     }
 }

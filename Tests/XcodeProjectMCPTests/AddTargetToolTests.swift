@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -16,7 +17,7 @@ struct AddTargetToolTests {
         #expect(toolDefinition.name == "add_target")
         #expect(
             toolDefinition.description
-                == "Create a new target (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+                == "Create a new target"
         )
     }
 
@@ -423,5 +424,34 @@ struct AddTargetToolTests {
         let xcodeproj = try XcodeProj(path: projectPath)
         let target = xcodeproj.pbxproj.nativeTargets.first { $0.name == "MyXPCService" }
         #expect(target?.productType == .xpcService)
+    }
+
+    @Test("Add target to xcproj project")
+    func addTargetToXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProject(name: "TestProject", at: projectPath)
+
+        let tool = AddTargetTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "target_name": .string("MyFramework"),
+            "product_type": .string("framework"),
+            "bundle_identifier": .string("com.example.framework"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully created target 'MyFramework'"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        let target = file.project.targets.first(where: { $0.name == "MyFramework" })
+        #expect(target != nil)
+        #expect(
+            target?.commonProperties.productTypeID?.rawValue
+                == "com.apple.product-type.framework")
+        #expect(target?.commonProperties.buildPhases.count == 3)
     }
 }

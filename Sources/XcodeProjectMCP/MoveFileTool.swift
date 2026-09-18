@@ -2,6 +2,7 @@ import Foundation
 import MCP
 import PathKit
 import XcodeProj
+import XcodeProjectFormat
 
 public struct MoveFileTool: Sendable {
     private let pathUtility: PathUtility
@@ -16,7 +17,7 @@ public struct MoveFileTool: Sendable {
         Tool(
             name: "move_file",
             description:
-                "Move or rename a file within the project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
+                "Move or rename a file within the project",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -61,18 +62,12 @@ public struct MoveFileTool: Sendable {
             moveOnDisk = false
         }
 
-        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "move_file")
-
         do {
-            // Resolve and validate the project path
-            let resolvedProjectPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedProjectPath)
+            let (loadedProject, projectURL) = try projectLoader.load(projectPath: projectPath)
 
             // Resolve and validate the old and new file paths
             let resolvedOldPath = try pathUtility.resolvePath(from: oldPath)
             let resolvedNewPath = try pathUtility.resolvePath(from: newPath)
-
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
 
             let oldFileName = URL(fileURLWithPath: resolvedOldPath).lastPathComponent
             let newFileName = URL(fileURLWithPath: resolvedNewPath).lastPathComponent
@@ -87,26 +82,62 @@ public struct MoveFileTool: Sendable {
 
             var fileMoved = false
 
-            // Find and update file references
-            for fileRef in xcodeproj.pbxproj.fileReferences {
-                if fileRef.path == oldRelativePath || fileRef.path == oldPath
-                    || fileRef.name == oldFileName || fileRef.path == oldFileName
-                {
-                    // Update the file reference
-                    fileRef.path = referencePath(
-                        for: fileRef,
-                        movedTo: resolvedNewPath,
-                        in: xcodeproj.pbxproj,
-                        projectDirectory: projectDirPath
-                    )
-                    fileRef.name = newFileName
-                    fileMoved = true
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                // Find and update file references
+                for fileRef in xcodeproj.pbxproj.fileReferences {
+                    if fileRef.path == oldRelativePath || fileRef.path == oldPath
+                        || fileRef.name == oldFileName || fileRef.path == oldFileName
+                    {
+                        // Update the file reference
+                        fileRef.path = referencePath(
+                            for: fileRef,
+                            movedTo: resolvedNewPath,
+                            in: xcodeproj.pbxproj,
+                            projectDirectory: projectDirPath
+                        )
+                        fileRef.name = newFileName
+                        fileMoved = true
+                    }
+                }
+
+                if fileMoved {
+                    try xcodeproj.write(path: Path(projectURL.path))
+                }
+            case .xcproj(var file):
+                // A group-based FilePath resolves relative to its owning group's
+                // directory, so recompute the stored path against that directory
+                // (mirrors the pbxproj arm's referencePath math). Membership
+                // entries travel with the file reference untouched.
+                fileMoved = XCProjTreeEditor.updateFirstFileReference(
+                    in: &file.project.topLevelReferences,
+                    where: { fileReference in
+                        let storedPath = fileReference.path.stringRepresentation
+                        let storedName =
+                            storedPath.split(separator: "/").last.map(String.init) ?? storedPath
+                        return storedPath == oldRelativePath || storedPath == oldPath
+                            || storedName == oldFileName
+                    },
+                    update: { fileReference, groupDirectory in
+                        var directory = projectDirPath.string
+                        for component in groupDirectory {
+                            directory = (directory as NSString)
+                                .appendingPathComponent(component)
+                        }
+                        let storedPath =
+                            PathUtility.relativePath(from: directory, to: resolvedNewPath)
+                            ?? newRelativePath
+                        fileReference.path =
+                            (try? XCSchema.FilePath(base: .group, path: storedPath))
+                            ?? XCSchema.FilePath(stringLiteral: storedPath)
+                    }
+                )
+                if fileMoved {
+                    try file.save()
                 }
             }
 
             if fileMoved {
-                try xcodeproj.write(path: Path(projectURL.path))
-
                 // Optionally move on disk
                 if moveOnDisk {
                     let oldURL = URL(fileURLWithPath: resolvedOldPath)

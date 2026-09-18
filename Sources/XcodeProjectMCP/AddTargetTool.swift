@@ -2,6 +2,7 @@ import Foundation
 import MCP
 import PathKit
 import XcodeProj
+import XcodeProjectFormat
 
 public struct AddTargetTool: Sendable {
     private let pathUtility: PathUtility
@@ -16,7 +17,7 @@ public struct AddTargetTool: Sendable {
         Tool(
             name: "add_target",
             description:
-                "Create a new target (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)",
+                "Create a new target",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -148,17 +149,17 @@ public struct AddTargetTool: Sendable {
             throw MCPError.invalidParams("Invalid product type: \(productTypeString)")
         }
 
-        try projectLoader.requirePBXProj(projectPath: projectPath, toolName: "add_target")
-
         do {
-            // Resolve and validate the project path
-            let resolvedProjectPath = try pathUtility.resolvePath(from: projectPath)
-            let projectURL = URL(fileURLWithPath: resolvedProjectPath)
+            let (loadedProject, projectURL) = try projectLoader.load(projectPath: projectPath)
 
-            let xcodeproj = try XcodeProj(path: Path(projectURL.path))
-
-            // Check if target already exists
-            if xcodeproj.pbxproj.nativeTargets.contains(where: { $0.name == targetName }) {
+            let targetExists: Bool
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                targetExists = xcodeproj.pbxproj.nativeTargets.contains { $0.name == targetName }
+            case .xcproj(let file):
+                targetExists = file.project.targets.contains { $0.name == targetName }
+            }
+            if targetExists {
                 return CallTool.Result(
                     content: [
                         .text("Target '\(targetName)' already exists in project")
@@ -166,86 +167,73 @@ public struct AddTargetTool: Sendable {
                 )
             }
 
-            // Create build configurations for target
-            let targetDebugConfig = XCBuildConfiguration(
-                name: "Debug",
-                buildSettings: [
+            switch loadedProject {
+            case .pbxproj(let xcodeproj):
+                try addToPBXProj(
+                    xcodeproj: xcodeproj, projectURL: projectURL, targetName: targetName,
+                    productType: productType, bundleIdentifier: bundleIdentifier,
+                    platform: platform, deploymentTarget: deploymentTarget)
+            case .xcproj(var file):
+                // xcproj stores one flat build settings dictionary per target;
+                // the pbxproj arm writes the same values into Debug and Release.
+                var buildSettings: [String: XCSchema.BuildSetting] = [
                     "PRODUCT_NAME": .string(targetName),
                     "BUNDLE_IDENTIFIER": .string(bundleIdentifier),
                     "INFOPLIST_FILE": .string("\(targetName)/Info.plist"),
                     "SWIFT_VERSION": .string("5.0"),
                     "TARGETED_DEVICE_FAMILY": .string(platform == "iOS" ? "1,2" : "1"),
-                ])
+                ]
+                if let deploymentTarget = deploymentTarget {
+                    let deploymentKey =
+                        platform == "iOS"
+                        ? "IPHONEOS_DEPLOYMENT_TARGET"
+                        : platform == "macOS"
+                            ? "MACOSX_DEPLOYMENT_TARGET"
+                            : platform == "tvOS"
+                                ? "TVOS_DEPLOYMENT_TARGET" : "WATCHOS_DEPLOYMENT_TARGET"
+                    buildSettings[deploymentKey] = .string(deploymentTarget)
+                }
 
-            let targetReleaseConfig = XCBuildConfiguration(
-                name: "Release",
-                buildSettings: [
-                    "PRODUCT_NAME": .string(targetName),
-                    "BUNDLE_IDENTIFIER": .string(bundleIdentifier),
-                    "INFOPLIST_FILE": .string("\(targetName)/Info.plist"),
-                    "SWIFT_VERSION": .string("5.0"),
-                    "TARGETED_DEVICE_FAMILY": .string(platform == "iOS" ? "1,2" : "1"),
-                ])
+                let target = XCSchema.Target.native(
+                    XCSchema.CommonTargetProperties(
+                        name: targetName,
+                        objectID: XCProjSupport.makeObjectID(),
+                        configurationListDebugID: nil,
+                        dependencies: [],
+                        buildPhases: [
+                            .sources(
+                                XCSchema.BuildPhaseProperties(
+                                    objectID: XCProjSupport.makeObjectID(), name: nil)),
+                            .frameworks(
+                                XCSchema.BuildPhaseProperties(
+                                    objectID: XCProjSupport.makeObjectID(), name: nil)),
+                            .resources(
+                                XCSchema.BuildPhaseProperties(
+                                    objectID: XCProjSupport.makeObjectID(), name: nil)),
+                        ],
+                        buildRules: [],
+                        specializedConfigurations: [],
+                        buildSettings: buildSettings,
+                        product: nil,
+                        productTypeID: XCSchema.ProductTypeID(rawValue: productType.rawValue),
+                        testHostTarget: nil,
+                        legacyProvisioningStyle: nil,
+                        legacyTeamID: nil,
+                        lastSwiftUpdateCheck: nil,
+                        lastSwiftMigration: nil,
+                        packageProductTargetMembers: []
+                    )
+                )
+                file.project.targets.append(target)
 
-            // Add deployment target if specified
-            if let deploymentTarget = deploymentTarget {
-                let deploymentKey =
-                    platform == "iOS"
-                    ? "IPHONEOS_DEPLOYMENT_TARGET"
-                    : platform == "macOS"
-                        ? "MACOSX_DEPLOYMENT_TARGET"
-                        : platform == "tvOS"
-                            ? "TVOS_DEPLOYMENT_TARGET" : "WATCHOS_DEPLOYMENT_TARGET"
-                targetDebugConfig.buildSettings[deploymentKey] = .string(deploymentTarget)
-                targetReleaseConfig.buildSettings[deploymentKey] = .string(deploymentTarget)
+                // Create target folder at the top level (mirrors the pbxproj
+                // arm's group in the main group)
+                let targetGroup = XCSchema.Group(
+                    objectID: nil, name: targetName, path: "", includeInIndex: nil, children: [])
+                file.project.topLevelReferences.append(.group(targetGroup))
+
+                try file.save()
             }
-
-            xcodeproj.pbxproj.add(object: targetDebugConfig)
-            xcodeproj.pbxproj.add(object: targetReleaseConfig)
-
-            // Create target configuration list
-            let targetConfigurationList = XCConfigurationList(
-                buildConfigurations: [targetDebugConfig, targetReleaseConfig],
-                defaultConfigurationName: "Release"
-            )
-            xcodeproj.pbxproj.add(object: targetConfigurationList)
-
-            // Create build phases
-            let sourcesBuildPhase = PBXSourcesBuildPhase()
-            xcodeproj.pbxproj.add(object: sourcesBuildPhase)
-
-            let resourcesBuildPhase = PBXResourcesBuildPhase()
-            xcodeproj.pbxproj.add(object: resourcesBuildPhase)
-
-            let frameworksBuildPhase = PBXFrameworksBuildPhase()
-            xcodeproj.pbxproj.add(object: frameworksBuildPhase)
-
-            // Create target
-            let target = PBXNativeTarget(
-                name: targetName,
-                buildConfigurationList: targetConfigurationList,
-                buildPhases: [sourcesBuildPhase, frameworksBuildPhase, resourcesBuildPhase],
-                productType: productType
-            )
-            target.productName = targetName
-            xcodeproj.pbxproj.add(object: target)
-
-            // Add target to project
-            if let project = xcodeproj.pbxproj.rootObject {
-                project.targets.append(target)
-            }
-
-            // Create target folder in main group
-            if let project = try xcodeproj.pbxproj.rootProject(),
-                let mainGroup = project.mainGroup
-            {
-                let targetGroup = PBXGroup(sourceTree: .group, name: targetName)
-                xcodeproj.pbxproj.add(object: targetGroup)
-                mainGroup.children.append(targetGroup)
-            }
-
-            // Save project
-            try xcodeproj.write(path: Path(projectURL.path))
 
             return CallTool.Result(
                 content: [
@@ -258,6 +246,92 @@ public struct AddTargetTool: Sendable {
             throw MCPError.internalError(
                 "Failed to create target in Xcode project: \(error.localizedDescription)")
         }
+    }
+
+    private func addToPBXProj(
+        xcodeproj: XcodeProj, projectURL: URL, targetName: String, productType: PBXProductType,
+        bundleIdentifier: String, platform: String, deploymentTarget: String?
+    ) throws {
+        // Create build configurations for target
+        let targetDebugConfig = XCBuildConfiguration(
+            name: "Debug",
+            buildSettings: [
+                "PRODUCT_NAME": .string(targetName),
+                "BUNDLE_IDENTIFIER": .string(bundleIdentifier),
+                "INFOPLIST_FILE": .string("\(targetName)/Info.plist"),
+                "SWIFT_VERSION": .string("5.0"),
+                "TARGETED_DEVICE_FAMILY": .string(platform == "iOS" ? "1,2" : "1"),
+            ])
+
+        let targetReleaseConfig = XCBuildConfiguration(
+            name: "Release",
+            buildSettings: [
+                "PRODUCT_NAME": .string(targetName),
+                "BUNDLE_IDENTIFIER": .string(bundleIdentifier),
+                "INFOPLIST_FILE": .string("\(targetName)/Info.plist"),
+                "SWIFT_VERSION": .string("5.0"),
+                "TARGETED_DEVICE_FAMILY": .string(platform == "iOS" ? "1,2" : "1"),
+            ])
+
+        // Add deployment target if specified
+        if let deploymentTarget = deploymentTarget {
+            let deploymentKey =
+                platform == "iOS"
+                ? "IPHONEOS_DEPLOYMENT_TARGET"
+                : platform == "macOS"
+                    ? "MACOSX_DEPLOYMENT_TARGET"
+                    : platform == "tvOS"
+                        ? "TVOS_DEPLOYMENT_TARGET" : "WATCHOS_DEPLOYMENT_TARGET"
+            targetDebugConfig.buildSettings[deploymentKey] = .string(deploymentTarget)
+            targetReleaseConfig.buildSettings[deploymentKey] = .string(deploymentTarget)
+        }
+
+        xcodeproj.pbxproj.add(object: targetDebugConfig)
+        xcodeproj.pbxproj.add(object: targetReleaseConfig)
+
+        // Create target configuration list
+        let targetConfigurationList = XCConfigurationList(
+            buildConfigurations: [targetDebugConfig, targetReleaseConfig],
+            defaultConfigurationName: "Release"
+        )
+        xcodeproj.pbxproj.add(object: targetConfigurationList)
+
+        // Create build phases
+        let sourcesBuildPhase = PBXSourcesBuildPhase()
+        xcodeproj.pbxproj.add(object: sourcesBuildPhase)
+
+        let resourcesBuildPhase = PBXResourcesBuildPhase()
+        xcodeproj.pbxproj.add(object: resourcesBuildPhase)
+
+        let frameworksBuildPhase = PBXFrameworksBuildPhase()
+        xcodeproj.pbxproj.add(object: frameworksBuildPhase)
+
+        // Create target
+        let target = PBXNativeTarget(
+            name: targetName,
+            buildConfigurationList: targetConfigurationList,
+            buildPhases: [sourcesBuildPhase, frameworksBuildPhase, resourcesBuildPhase],
+            productType: productType
+        )
+        target.productName = targetName
+        xcodeproj.pbxproj.add(object: target)
+
+        // Add target to project
+        if let project = xcodeproj.pbxproj.rootObject {
+            project.targets.append(target)
+        }
+
+        // Create target folder in main group
+        if let project = try xcodeproj.pbxproj.rootProject(),
+            let mainGroup = project.mainGroup
+        {
+            let targetGroup = PBXGroup(sourceTree: .group, name: targetName)
+            xcodeproj.pbxproj.add(object: targetGroup)
+            mainGroup.children.append(targetGroup)
+        }
+
+        // Save project
+        try xcodeproj.write(path: Path(projectURL.path))
     }
 }
 

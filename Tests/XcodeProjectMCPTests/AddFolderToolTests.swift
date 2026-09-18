@@ -3,6 +3,7 @@ import MCP
 import PathKit
 import Testing
 import XcodeProj
+import XcodeProjectFormat
 
 @testable import XcodeProjectMCP
 
@@ -23,7 +24,7 @@ struct AddFolderToolTests {
         #expect(tool.tool().name == "add_synchronized_folder")
         #expect(
             tool.tool().description
-                == "Add a synchronized folder reference to an Xcode project (pbxproj format only; xcproj-format projects from Xcode 27.2 are not supported yet)"
+                == "Add a synchronized folder reference to an Xcode project"
         )
 
         let schema = tool.tool().inputSchema
@@ -215,5 +216,38 @@ struct AddFolderToolTests {
                 "folder_path": .string(filePath.string),
             ])
         }
+    }
+
+    @Test("Add synchronized folder to xcproj project")
+    func addSynchronizedFolderToXCProjProject() throws {
+        let tempDir = TemporaryDirectory.url
+        let projectPath = Path(tempDir.path) + "TestProject.xcodeproj"
+        try TestXCProjHelper.createTestXCProjectWithTarget(
+            name: "TestProject", targetName: "TestApp", at: projectPath)
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: tempDir.path).appendingPathComponent("Sources"),
+            withIntermediateDirectories: true)
+
+        let tool = AddFolderTool(pathUtility: PathUtility(basePath: tempDir.path))
+        let result = try tool.execute(arguments: [
+            "project_path": .string(projectPath.string),
+            "folder_path": .string("Sources"),
+            "target_name": .string("TestApp"),
+        ])
+
+        guard case let .text(message, _, _) = result.content.first else {
+            Issue.record("Expected text result")
+            return
+        }
+        #expect(message.contains("Successfully added folder reference 'Sources'"))
+
+        let file = try XCProjFile.load(bundleURL: URL(fileURLWithPath: projectPath.string))
+        let folder = file.project.topLevelReferences.compactMap { reference -> XCSchema.Folder? in
+            if case .folder(let folder) = reference { return folder }
+            return nil
+        }.first
+        #expect(folder?.path.stringRepresentation == "Sources")
+        #expect(
+            folder?.targets.contains(XCSchema.LocalTargetReference(targetName: "TestApp")) == true)
     }
 }

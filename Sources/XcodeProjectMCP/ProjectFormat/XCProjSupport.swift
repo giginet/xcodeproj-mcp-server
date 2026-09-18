@@ -179,7 +179,7 @@ enum XCProjSupport {
         return files
     }
 
-    private static func objectID(of phase: XCSchema.BuildPhase) -> XCSchema.ObjectID? {
+    static func objectID(of phase: XCSchema.BuildPhase) -> XCSchema.ObjectID? {
         switch phase {
         case .frameworks(let properties), .headers(let properties),
             .javaArchive(let properties), .resources(let properties),
@@ -197,16 +197,194 @@ enum XCProjSupport {
     private static func forEachFileReference(
         in references: [XCSchema.Reference], _ body: (XCSchema.FileReference) -> Void
     ) {
-        for reference in references {
-            switch reference {
-            case .fileReference(let fileReference):
-                body(fileReference)
-            case .group(let group):
-                forEachFileReference(in: group.children, body)
-            case .folder, .variantGroup, .versionGroup:
-                continue
+        XCProjTreeEditor.forEachFileReference(in: references, body)
+    }
+
+    // MARK: - Target mutation
+
+    /// Mutates the common properties of the named target, rebuilding the
+    /// target's enum case. Returns false when the target doesn't exist.
+    @discardableResult
+    static func modifyTarget(
+        named targetName: String, in project: inout XCSchema.Project,
+        _ body: (inout XCSchema.CommonTargetProperties) -> Void
+    ) -> Bool {
+        guard let index = project.targets.firstIndex(where: { $0.name == targetName }) else {
+            return false
+        }
+        project.targets[index] = modifying(project.targets[index], body)
+        return true
+    }
+
+    static func modifying(
+        _ target: XCSchema.Target, _ body: (inout XCSchema.CommonTargetProperties) -> Void
+    ) -> XCSchema.Target {
+        switch target {
+        case .native(var properties):
+            body(&properties)
+            return .native(properties)
+        case .aggregate(var properties):
+            body(&properties)
+            return .aggregate(properties)
+        case .externalBuildSystem(var properties):
+            body(&properties.commonProperties)
+            return .externalBuildSystem(properties)
+        }
+    }
+
+    /// Builds an empty build phase of one of the simple kinds.
+    static func makeBuildPhase(kind: XCSchema.BuildPhase.Kind, objectID: XCSchema.ObjectID? = nil)
+        -> XCSchema.BuildPhase?
+    {
+        let properties = XCSchema.BuildPhaseProperties(objectID: objectID, name: nil)
+        switch kind {
+        case .sources: return .sources(properties)
+        case .resources: return .resources(properties)
+        case .frameworks: return .frameworks(properties)
+        case .headers: return .headers(properties)
+        case .javaArchive: return .javaArchive(properties)
+        case .rez: return .rez(properties)
+        case .appleScript, .copy, .script: return nil
+        }
+    }
+
+    /// Ensures the target has a build phase of the given simple kind, so a
+    /// `.named` build-file reference to it resolves.
+    static func ensureBuildPhase(
+        kind: XCSchema.BuildPhase.Kind, in properties: inout XCSchema.CommonTargetProperties
+    ) {
+        guard !properties.buildPhases.contains(where: { $0.kind == kind }),
+            let phase = makeBuildPhase(kind: kind)
+        else { return }
+        properties.buildPhases.append(phase)
+    }
+
+    /// Build-file properties carrying no customization.
+    static func emptyBuildFileProperties() -> XCSchema.BuildFileProperties {
+        XCSchema.BuildFileProperties(
+            platformFilters: [],
+            additionalBuildFlags: nil,
+            assetTags: [],
+            attributes: emptyBuildFileAttributes()
+        )
+    }
+
+    static func emptyBuildFileAttributes() -> XCSchema.BuildFileAttributes {
+        XCSchema.BuildFileAttributes(
+            headerRole: nil,
+            machInterfaceGeneration: nil,
+            isWeak: false,
+            codeSignOnCopy: false,
+            codeGeneration: .default,
+            headerPreservation: .keep,
+            decompress: false,
+            codeGenerationVisibility: nil
+        )
+    }
+
+    /// A membership entry mapping a file into the named target's phase of the
+    /// given kind (and optional phase name, for copy/script phases).
+    static func makeBuildFile(
+        targetName: String, kind: XCSchema.BuildPhase.Kind, phaseName: String? = nil,
+        properties: XCSchema.BuildFileProperties? = nil
+    ) -> XCSchema.ProjectBuildFile {
+        XCSchema.ProjectBuildFile(
+            objectID: nil,
+            buildPhase: .named(
+                target: XCSchema.LocalTargetReference(targetName: targetName),
+                kind: kind, name: phaseName),
+            properties: properties ?? emptyBuildFileProperties()
+        )
+    }
+
+    /// Whether a build-file entry maps into the given target, addressed either
+    /// by name or through one of the target's phase object IDs.
+    static func buildFile(
+        _ buildFile: XCSchema.ProjectBuildFile, belongsTo targetName: String,
+        phaseIDs: Set<XCSchema.ObjectID>, kinds: Set<XCSchema.BuildPhase.Kind>? = nil
+    ) -> Bool {
+        switch buildFile.buildPhase {
+        case .objectID(let id):
+            return phaseIDs.contains(id)
+        case .named(let target, let kind, _):
+            guard target.targetName == targetName else { return false }
+            guard let kinds else { return true }
+            return kinds.contains(kind)
+        }
+    }
+
+    static func phaseObjectIDs(
+        of target: XCSchema.Target, kinds: Set<XCSchema.BuildPhase.Kind>? = nil
+    ) -> Set<XCSchema.ObjectID> {
+        Set(
+            target.commonProperties.buildPhases
+                .filter { kinds == nil || kinds!.contains($0.kind) }
+                .compactMap { objectID(of: $0) }
+        )
+    }
+
+    /// Copies build phases, minting a fresh object ID for every phase that has
+    /// one, and returns the old-to-new ID mapping (used to duplicate matching
+    /// `buildFiles` entries when duplicating a target).
+    static func withReassignedPhaseObjectIDs(_ phases: [XCSchema.BuildPhase])
+        -> (phases: [XCSchema.BuildPhase], mapping: [XCSchema.ObjectID: XCSchema.ObjectID])
+    {
+        var mapping: [XCSchema.ObjectID: XCSchema.ObjectID] = [:]
+        func remap(_ properties: inout XCSchema.BuildPhaseProperties) {
+            guard let old = properties.objectID else { return }
+            let new = makeObjectID()
+            mapping[old] = new
+            properties.objectID = new
+        }
+        let newPhases = phases.map { phase -> XCSchema.BuildPhase in
+            switch phase {
+            case .sources(var properties):
+                remap(&properties)
+                return .sources(properties)
+            case .resources(var properties):
+                remap(&properties)
+                return .resources(properties)
+            case .frameworks(var properties):
+                remap(&properties)
+                return .frameworks(properties)
+            case .headers(var properties):
+                remap(&properties)
+                return .headers(properties)
+            case .javaArchive(var properties):
+                remap(&properties)
+                return .javaArchive(properties)
+            case .rez(var properties):
+                remap(&properties)
+                return .rez(properties)
+            case .appleScript(var properties):
+                remap(&properties.baseProperties)
+                return .appleScript(properties)
+            case .copy(var properties):
+                remap(&properties.baseProperties)
+                return .copy(properties)
+            case .script(var properties):
+                remap(&properties.baseProperties)
+                return .script(properties)
             }
         }
+        return (newPhases, mapping)
+    }
+
+    /// Names of the targets a file reference is mapped into.
+    static func targetNames(
+        referencedBy fileReference: XCSchema.FileReference, in project: XCSchema.Project
+    ) -> [String] {
+        var names: [String] = []
+        for target in project.targets {
+            let ids = phaseObjectIDs(of: target)
+            let belongs = fileReference.buildFiles.contains {
+                buildFile($0, belongsTo: target.name, phaseIDs: ids)
+            }
+            if belongs, !names.contains(target.name) {
+                names.append(target.name)
+            }
+        }
+        return names
     }
 
     // MARK: - Build settings
