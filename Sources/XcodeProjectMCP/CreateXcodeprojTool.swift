@@ -185,7 +185,7 @@ public struct CreateXcodeprojTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to create Xcode project: \(error.localizedDescription)")
+                "Failed to create Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

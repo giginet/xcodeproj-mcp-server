@@ -377,7 +377,7 @@ public struct AddAppExtensionTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to create App Extension in Xcode project: \(error.localizedDescription)")
+                "Failed to create App Extension in Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

@@ -118,7 +118,7 @@ public struct RemoveSwiftPackageTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to remove Swift Package from Xcode project: \(error.localizedDescription)")
+                "Failed to remove Swift Package from Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

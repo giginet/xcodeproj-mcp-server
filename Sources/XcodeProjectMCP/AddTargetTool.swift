@@ -251,7 +251,7 @@ public struct AddTargetTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to create target in Xcode project: \(error.localizedDescription)")
+                "Failed to create target in Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

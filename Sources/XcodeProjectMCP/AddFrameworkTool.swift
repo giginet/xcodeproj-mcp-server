@@ -218,7 +218,7 @@ public struct AddFrameworkTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to add framework to Xcode project: \(error.localizedDescription)")
+                "Failed to add framework to Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

@@ -75,7 +75,7 @@ public struct ListSwiftPackagesTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to list Swift Packages in Xcode project: \(error.localizedDescription)")
+                "Failed to list Swift Packages in Xcode project: \(error.descriptiveMessage)")
         }
     }
 

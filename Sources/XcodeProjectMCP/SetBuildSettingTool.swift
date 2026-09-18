@@ -127,7 +127,7 @@ public struct SetBuildSettingTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to set build setting in Xcode project: \(error.localizedDescription)")
+                "Failed to set build setting in Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

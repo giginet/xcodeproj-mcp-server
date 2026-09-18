@@ -206,7 +206,7 @@ public struct AddFileTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to add file to Xcode project: \(error.localizedDescription)")
+                "Failed to add file to Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

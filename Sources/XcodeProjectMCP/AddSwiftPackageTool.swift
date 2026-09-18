@@ -140,7 +140,7 @@ public struct AddSwiftPackageTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to add Swift Package to Xcode project: \(error.localizedDescription)")
+                "Failed to add Swift Package to Xcode project: \(error.descriptiveMessage)")
         }
     }
 

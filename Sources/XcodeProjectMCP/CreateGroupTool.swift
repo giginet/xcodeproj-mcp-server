@@ -120,7 +120,7 @@ public struct CreateGroupTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to create group in Xcode project: \(error.localizedDescription)")
+                "Failed to create group in Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

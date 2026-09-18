@@ -169,7 +169,7 @@ public struct RemoveFileTool: Sendable {
             }
         } catch {
             throw MCPError.internalError(
-                "Failed to remove file from Xcode project: \(error.localizedDescription)")
+                "Failed to remove file from Xcode project: \(error.descriptiveMessage)")
         }
     }
 }

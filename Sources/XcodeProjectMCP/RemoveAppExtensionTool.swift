@@ -166,7 +166,7 @@ public struct RemoveAppExtensionTool: Sendable {
             )
         } catch {
             throw MCPError.internalError(
-                "Failed to remove App Extension from Xcode project: \(error.localizedDescription)")
+                "Failed to remove App Extension from Xcode project: \(error.descriptiveMessage)")
         }
     }
 
